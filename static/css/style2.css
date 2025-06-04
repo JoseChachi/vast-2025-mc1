@@ -1,0 +1,53 @@
+
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: sans-serif;
+}
+
+.container {
+  display: grid;
+  grid-template-areas:
+    "header header side"
+    "graph graph side"
+    "bottom bottom side";
+  grid-template-columns: 1fr 1fr 300px;
+  grid-template-rows: 60px 1fr 200px;
+  height: 100vh;
+}
+
+.header {
+  grid-area: header;
+  background-color: #f2bcbc;
+  display: flex;
+  align-items: center;
+  padding-left: 20px;
+  border: 1px solid black;
+}
+
+.main-graph {
+  grid-area: graph;
+  background-color: #d0e6f7;
+  border: 1px solid black;
+  position: relative;
+}
+
+.main-graph svg {
+  width: 100%;
+  height: 100%;
+}
+
+.bottom-panel {
+  grid-area: bottom;
+  background-color: #e8f5b3;
+  border: 1px solid black;
+  padding: 10px;
+}
+
+.side-panel {
+  grid-area: side;
+  background-color: #f4e2d8;
+  border: 1px solid black;
+  padding: 10px;
+}
