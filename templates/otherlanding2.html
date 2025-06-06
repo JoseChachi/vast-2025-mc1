@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph with Connection Finder</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #graph {
+            width: 800px;
+            height: 600px;
+            border: 1px solid #ccc;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .highlighted {
+            stroke: red !important;
+            stroke-width: 3px !important;
+        }
+        .target-node {
+            fill: red !important;
+            stroke: darkred !important;
+            stroke-width: 3px !important;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Graph Network with Connection Finder</h1>
+    
+    <div id="controls">
+        <input type="number" id="targetNodeInput" placeholder="Enter target node ID" value="-1">
+        <button onclick="loadTargetNode()">Load Network</button>
+        <button onclick="clearGraph()">Clear Graph</button>
+        <p id="currentTarget">Current target: -1</p>
+    </div>
+    
+    <svg id="graph"></svg>
+    
+    <div id="results"></div>
+
+    <script>
+        const svg = d3.select("#graph");
+        const width = parseInt(svg.style("width"));
+        const height = parseInt(svg.style("height"));
+
+        // Create group for nodes and links
+        const g = svg.append("g");
+
+        // Variables for canvas dragging
+        let currentTransform = d3.zoomIdentity;
+
+        // Zoom + pan function
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => {
+                currentTransform = event.transform;
+                g.attr("transform", currentTransform);
+            });
+
+        svg.call(zoom);
+
+        // Target node ID - will be updated dynamically
+        let TARGET_NODE_ID = -1;
+        let originalData = null; // Store the original data
+
+        // Global variables to store data
+        let allNodes = [];
+        let allLinks = [];
+        let nodeElements, linkElements, labelElements;
+
+        // Data will be loaded from JSON file
+
+        // Function to clear the current graph
+        function clearGraph() {
+            g.selectAll("*").remove();
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Function to load network for a target node
+        function loadTargetNode() {
+            const inputValue = document.getElementById('targetNodeInput').value;
+            if (!inputValue) {
+                alert('Please enter a node ID');
+                return;
+            }
+            
+            const nodeId = parseInt(inputValue);
+            TARGET_NODE_ID = nodeId;
+            
+            // Update current target display
+            document.getElementById('currentTarget').textContent = `Current target: ${TARGET_NODE_ID}`;
+            
+            // Clear current graph
+            clearGraph();
+            
+            // Load new network if data is available
+            if (originalData) {
+                createVisualization(originalData);
+            }
+        }
+
+        // Function to get connected subgraph for a specific node ID
+        function getConnectedSubgraph(data, targetNodeId) {
+            // Find all links connected to the target node
+            const connectedLinks = data.links.filter(link => 
+                link.source === targetNodeId || link.target === targetNodeId
+            );
+
+            // Get all unique node IDs from the connected links
+            const connectedNodeIds = new Set([targetNodeId]);
+            connectedLinks.forEach(link => {
+                connectedNodeIds.add(link.source);
+                connectedNodeIds.add(link.target);
+            });
+
+            // Filter nodes to only include connected ones
+            const connectedNodes = data.nodes.filter(node => 
+                connectedNodeIds.has(node.id)
+            );
+
+            return {
+                nodes: connectedNodes,
+                links: connectedLinks,
+                targetNodeId: targetNodeId
+            };
+        }
+
+        // Function to display network information
+        function displayNetworkInfo(subgraph) {
+            const resultsDiv = document.getElementById('results');
+            const targetNode = subgraph.nodes.find(n => n.id === subgraph.targetNodeId);
+            
+            let html = `<h3>Network for Node ${subgraph.targetNodeId}</h3>`;
+            
+            if (targetNode) {
+                html += `<p><strong>Target Node:</strong> ${targetNode.name} (Type: ${targetNode["Node Type"]})</p>`;
+            }
+            
+            html += `<h4>Connected Nodes (${subgraph.nodes.length - 1}):</h4>`;
+            html += '<ul>';
+            subgraph.nodes.forEach(node => {
+                if (node.id !== subgraph.targetNodeId) {
+                    html += `<li>ID: ${node.id}, Name: ${node.name}, Type: ${node["Node Type"]}</li>`;
+                }
+            });
+            html += '</ul>';
+
+            html += `<h4>Connections (${subgraph.links.length}):</h4>`;
+            html += '<ul>';
+            subgraph.links.forEach(link => {
+                const sourceNode = subgraph.nodes.find(n => n.id === link.source);
+                const targetNode = subgraph.nodes.find(n => n.id === link.target);
+                html += `<li>${sourceNode.name} (${link.source}) ↔ ${targetNode.name} (${link.target})</li>`;
+            });
+            html += '</ul>';
+
+            resultsDiv.innerHTML = html;
+        }
+
+        // Load data and create visualization
+        function loadData(data) {
+            // Store original data for reuse
+            originalData = data;
+            // Create initial visualization
+            createVisualization(data);
+        }
+
+        // Function to create visualization with current target node
+        function createVisualization(data) {
+            // Get only the subgraph connected to the target node
+            const subgraph = getConnectedSubgraph(data, TARGET_NODE_ID);
+            
+            if (subgraph.nodes.length === 0) {
+                document.getElementById('results').innerHTML = 
+                    `<h3>Node ${TARGET_NODE_ID} not found in the data</h3>`;
+                return;
+            }
+
+            // Process nodes for visualization
+            allNodes = subgraph.nodes.map(d => ({
+                id: d.id,
+                name: d.name,
+                type: d["Node Type"]
+            }));
+
+            // Process links for visualization
+            allLinks = subgraph.links;
+
+            // Display network information
+            displayNetworkInfo(subgraph);
+
+            const simulation = d3.forceSimulation(allNodes)
+                .force("link", d3.forceLink(allLinks).id(d => d.id).distance(150))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("x", d3.forceX(width / 2).strength(0.1))
+                .force("y", d3.forceY(height / 2).strength(0.1))
+                .force("collision", d3.forceCollide(30))
+                .on("tick", ticked);
+
+            linkElements = g.selectAll("line")
+                .data(allLinks)
+                .enter()
+                .append("line")
+                .attr("stroke", "#999")
+                .attr("stroke-width", 2);
+
+            nodeElements = g.selectAll("circle")
+                .data(allNodes)
+                .enter()
+                .append("circle")
+                .attr("r", d => d.id === TARGET_NODE_ID ? 15 : 10) // Make target node larger
+                .attr("fill", d => {
+                    if (d.id === TARGET_NODE_ID) return "red"; // Target node in red
+                    if (d.type === "Song") return "skyblue";
+                    if (d.type === "Person") return "orange";
+                    if (d.type === "RecordLabel") return "green";
+                    return "gray";
+                })
+                .attr("stroke", d => d.id === TARGET_NODE_ID ? "darkred" : "white")
+                .attr("stroke-width", d => d.id === TARGET_NODE_ID ? 3 : 1)
+                .call(drag(simulation));
+
+            labelElements = g.selectAll("text")
+                .data(allNodes)
+                .enter()
+                .append("text")
+                .text(d => d.name)
+                .attr("font-size", d => d.id === TARGET_NODE_ID ? "12px" : "10px")
+                .attr("font-weight", d => d.id === TARGET_NODE_ID ? "bold" : "normal")
+                .attr("fill", "black");
+
+            function ticked() {
+                linkElements
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                nodeElements
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+
+                labelElements
+                    .attr("x", d => d.x + 12)
+                    .attr("y", d => d.y + 4);
+            }
+
+            function drag(simulation) {
+                return d3.drag()
+                    .on("start", (event, d) => {
+                        if (!event.active) simulation.alphaTarget(0.3).restart();
+                        d.fx = d.x;
+                        d.fy = d.y;
+                    })
+                    .on("drag", (event, d) => {
+                        d.fx = event.x;
+                        d.fy = event.y;
+                    })
+                    .on("end", (event, d) => {
+                        if (!event.active) simulation.alphaTarget(0);
+                        d.fx = null;
+                        d.fy = null;
+                    });
+            }
+        }
+
+        // Load your actual data
+        d3.json("/data/MC1_graph.json").then(loadData).catch(error => {
+            console.error("Error loading data:", error);
+            document.getElementById('results').innerHTML = 
+                '<h3>Error loading data. Please check if the file exists at /data/MC1_graph.json</h3>';
+        });
+
+        // Make functions globally accessible
+        window.loadTargetNode = loadTargetNode;
+        window.clearGraph = clearGraph;
+        window.getConnectedSubgraph = getConnectedSubgraph;
+    </script>
+</body>
+</html>

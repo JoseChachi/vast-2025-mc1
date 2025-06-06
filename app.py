@@ -11,6 +11,10 @@ def index():
 def index2():
     return render_template('otherlanding.html')
 
+@app.route('/xd3/')
+def index3():
+    return render_template('otherlanding2.html')
+
 @app.route('/data/<path:filename>')
 def data(filename):
     return send_from_directory('data', filename)
