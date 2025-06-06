@@ -7,6 +7,10 @@ app = Flask(__name__)
 def index():
     return render_template('graph.html')
 
+@app.route('/xd2/')
+def index2():
+    return render_template('otherlanding.html')
+
 @app.route('/data/<path:filename>')
 def data(filename):
     return send_from_directory('data', filename)

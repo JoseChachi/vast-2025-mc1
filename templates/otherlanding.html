@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph with Connection Finder</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #graph {
+            width: 800px;
+            height: 600px;
+            border: 1px solid #ccc;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .highlighted {
+            stroke: black !important;
+            stroke-width: 4px !important;
+        }
+        .target-node {
+            stroke: red !important;
+            stroke-width: 3px !important;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Graph Network with Connection Finder</h1>
+    
+    <div id="controls">
+        <input type="number" id="nodeId" placeholder="Enter node ID (e.g., 17255)" value="17255">
+        <button onclick="findConnections()">Find Connections</button>
+        <button onclick="clearHighlights()">Clear Highlights</button>
+    </div>
+    
+    <svg id="graph"></svg>
+    
+    <div id="results"></div>
+
+    <script>
+        const svg = d3.select("#graph");
+        const width = parseInt(svg.style("width"));
+        const height = parseInt(svg.style("height"));
+
+        // Create group for nodes and links
+        const g = svg.append("g");
+
+        // Variables for canvas dragging
+        let currentTransform = d3.zoomIdentity;
+
+        // Zoom + pan function
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => {
+                currentTransform = event.transform;
+                g.attr("transform", currentTransform);
+            });
+
+        svg.call(zoom);
+
+        // Global variables to store data
+        let allNodes = [];
+        let allLinks = [];
+        let nodeElements, linkElements, labelElements;
+
+        // Data will be loaded from JSON file
+
+        // Function to get all connections for a specific node ID
+        function getConnections(nodeId) {
+            const connections = {
+                targetNode: null,
+                connectedNodes: [],
+                directConnections: [],
+                allConnections: []
+            };
+
+            // Find the target node
+            connections.targetNode = allNodes.find(node => node.id == nodeId);
+            
+            if (!connections.targetNode) {
+                console.log(`Node with ID ${nodeId} not found`);
+                return connections;
+            }
+
+            // Find all direct connections (links)
+            const directLinks = allLinks.filter(link => 
+                link.source.id == nodeId || link.target.id == nodeId
+            );
+
+            connections.directConnections = directLinks;
+
+            // Find all connected nodes
+            const connectedNodeIds = new Set();
+            directLinks.forEach(link => {
+                if (link.source.id == nodeId) {
+                    connectedNodeIds.add(link.target.id);
+                } else {
+                    connectedNodeIds.add(link.source.id);
+                }
+            });
+
+            connections.connectedNodes = allNodes.filter(node => 
+                connectedNodeIds.has(node.id)
+            );
+
+            connections.allConnections = [...connections.directConnections];
+
+            return connections;
+        }
+
+        // Function to highlight connections in the visualization
+        function highlightConnections(nodeId) {
+            const connections = getConnections(nodeId);
+            
+            // Clear previous highlights
+            clearHighlights();
+
+            if (!connections.targetNode) {
+                document.getElementById('results').innerHTML = 
+                    `<h3>Node ${nodeId} not found in the graph</h3>`;
+                return;
+            }
+
+            // Highlight ONLY the target node (searched node) in red
+            nodeElements.classed('target-node', d => d.id == nodeId);
+
+            // Highlight connections (links) connected to the target node
+            linkElements.classed('highlighted', d => 
+                d.source.id == nodeId || d.target.id == nodeId
+            );
+
+            // Display results
+            displayResults(connections);
+
+            return connections;
+        }
+
+        // Function to display results in the UI
+        function displayResults(connections) {
+            const resultsDiv = document.getElementById('results');
+            
+            let html = `<h3>Connections for Node ${connections.targetNode.id} (${connections.targetNode.name})</h3>`;
+            
+            html += `<h4>Connected Nodes (${connections.connectedNodes.length}):</h4>`;
+            html += '<ul>';
+            connections.connectedNodes.forEach(node => {
+                html += `<li>ID: ${node.id}, Name: ${node.name}, Type: ${node.type}</li>`;
+            });
+            html += '</ul>';
+
+            html += `<h4>Direct Connections (${connections.directConnections.length}):</h4>`;
+            html += '<ul>';
+            connections.directConnections.forEach(link => {
+                const sourceNode = allNodes.find(n => n.id === link.source.id);
+                const targetNode = allNodes.find(n => n.id === link.target.id);
+                html += `<li>${sourceNode.name} (${link.source.id}) ↔ ${targetNode.name} (${link.target.id})</li>`;
+            });
+            html += '</ul>';
+
+            resultsDiv.innerHTML = html;
+        }
+
+        // Function to clear highlights
+        function clearHighlights() {
+            if (nodeElements) {
+                nodeElements.classed('target-node', false);
+            }
+            if (linkElements) {
+                linkElements.classed('highlighted', false);
+            }
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Function called by the button
+        function findConnections() {
+            const nodeId = document.getElementById('nodeId').value;
+            if (nodeId) {
+                const connections = highlightConnections(parseInt(nodeId));
+                console.log('Connections found:', connections);
+            }
+        }
+
+        // Load data and create visualization
+        function loadData(data) {
+            allNodes = data.nodes
+                .filter(d => d.id < 100) // Adjust this filter based on your needs
+                .map(d => ({
+                    id: d.id,
+                    name: d.name,
+                    type: d["Node Type"]
+                }));
+
+            const nodeIds = new Set(allNodes.map(d => d.id));
+
+            allLinks = data.links.filter(
+                d => nodeIds.has(d.source) && nodeIds.has(d.target)
+            );
+
+            const simulation = d3.forceSimulation(allNodes)
+                .force("link", d3.forceLink(allLinks).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-100))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("x", d3.forceX(width / 2).strength(0.05))
+                .force("y", d3.forceY(height / 2).strength(0.05))
+                .force("collision", d3.forceCollide(25))
+                .on("tick", ticked);
+
+            linkElements = g.selectAll("line")
+                .data(allLinks)
+                .enter()
+                .append("line")
+                .attr("opacity", 0.6)
+                .attr("stroke", "#999")
+                .attr("stroke-width", 1.5);
+
+            nodeElements = g.selectAll("circle")
+                .data(allNodes)
+                .enter()
+                .append("circle")
+                .attr("r", 10)
+                .attr("fill", d => {
+                    if (d.type === "Song") return "skyblue";
+                    if (d.type === "Person") return "orange";
+                    if (d.type === "RecordLabel") return "green";
+                    return "gray";
+                })
+                .call(drag(simulation));
+
+            labelElements = g.selectAll("text")
+                .data(allNodes)
+                .enter()
+                .append("text")
+                .text(d => d.name)
+                .attr("font-size", "10px")
+                .attr("fill", "black");
+
+            function ticked() {
+                linkElements
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                nodeElements
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+
+                labelElements
+                    .attr("x", d => d.x + 12)
+                    .attr("y", d => d.y + 4);
+            }
+
+            function drag(simulation) {
+                return d3.drag()
+                    .on("start", (event, d) => {
+                        if (!event.active) simulation.alphaTarget(0.3).restart();
+                        d.fx = d.x;
+                        d.fy = d.y;
+                    })
+                    .on("drag", (event, d) => {
+                        d.fx = event.x;
+                        d.fy = event.y;
+                    })
+                    .on("end", (event, d) => {
+                        if (!event.active) simulation.alphaTarget(0);
+                        d.fx = null;
+                        d.fy = null;
+                    });
+            }
+        }
+
+        // Load your actual data
+        d3.json("/data/MC1_graph.json").then(loadData).catch(error => {
+            console.error("Error loading data:", error);
+            document.getElementById('results').innerHTML = 
+                '<h3>Error loading data. Please check if the file exists at /data/MC1_graph.json</h3>';
+        });
+
+        // Make functions globally accessible
+        window.findConnections = findConnections;
+        window.clearHighlights = clearHighlights;
+        window.getConnections = getConnections;
+    </script>
+</body>
+</html>
