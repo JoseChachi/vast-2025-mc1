@@ -49,23 +49,11 @@
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .source-node {
-            fill: #4CAF50;
-            stroke: #2E7D32;
-            stroke-width: 2px;
-            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.2));
-        }
         .center-node {
             fill: #FF5722;
             stroke: #D84315;
             stroke-width: 3px;
             filter: drop-shadow(3px 3px 6px rgba(0,0,0,0.3));
-        }
-        .target-node {
-            fill: #2196F3;
-            stroke: #0D47A1;
-            stroke-width: 2px;
-            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.2));
         }
         .link {
             stroke: #666;
@@ -158,11 +146,10 @@
             margin: 15px 0;
         }
         .bar {
-            fill: #007bff;
             transition: fill 0.3s ease;
         }
         .bar:hover {
-            fill: #0056b3;
+            opacity: 0.8;
         }
         .axis {
             font-size: 12px;
@@ -179,9 +166,24 @@
             border-radius: 50%;
             margin-right: 8px;
         }
-        .legend-source { background-color: #4CAF50; }
         .legend-center { background-color: #FF5722; }
-        .legend-target { background-color: #2196F3; }
+        .node-type-legend {
+            margin: 10px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .node-type-legend h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+        .node-type-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -215,6 +217,21 @@
 
         // Create group for nodes and links
         const g = svg.append("g");
+
+        // Define color palette for node types
+        const nodeTypeColors = {
+            'Person': '#9C27B0',      // Purple
+            'MusicalGroup': '#4CAF50', // Green
+            'RecordLabel': '#FF9800',     // Orange
+            'Album': '#2196F3',        // Blue
+            'Song': '#FFFF00',
+            'Other': '#607D8B'         // Blue Grey
+        };
+
+        // Function to get color for node type
+        function getNodeTypeColor(nodeType) {
+            return nodeTypeColors[nodeType] || nodeTypeColors['Other'];
+        }
 
         // Define zones
         const zones = {
@@ -350,7 +367,7 @@
             [...categorized.sourceNodes, categorized.centerNode, ...categorized.targetNodes]
                 .filter(n => n)
                 .forEach(node => {
-                    const nodeType = node["Node Type"] || "Unknown";
+                    const nodeType = node["Node Type"] || "Other";
                     nodeTypeStats[nodeType] = (nodeTypeStats[nodeType] || 0) + 1;
                 });
 
@@ -383,7 +400,7 @@
                 <div class="info-section">
                     <h3>Distribución por Nivel</h3>
                     <div class="legend">
-                        <div class="legend-color legend-source"></div>
+                        <div class="legend-color" style="background: linear-gradient(45deg, ${Object.values(nodeTypeColors).join(', ')});"></div>
                         <span>Sources: ${categorized.sourceNodes.length}</span>
                     </div>
                     <div class="legend">
@@ -391,9 +408,29 @@
                         <span>Centro: 1</span>
                     </div>
                     <div class="legend">
-                        <div class="legend-color legend-target"></div>
+                        <div class="legend-color" style="background: linear-gradient(45deg, ${Object.values(nodeTypeColors).join(', ')});"></div>
                         <span>Targets: ${categorized.targetNodes.length}</span>
                     </div>
+                </div>
+
+                <div class="node-type-legend">
+                    <h4>Leyenda de Tipos de Nodo</h4>
+            `;
+
+            // Add legend for node types
+            Object.entries(nodeTypeColors).forEach(([nodeType, color]) => {
+                const count = nodeTypeStats[nodeType] || 0;
+                if (count > 0) {
+                    html += `
+                        <div class="node-type-item">
+                            <div class="legend-color" style="background-color: ${color};"></div>
+                            <span>${nodeType}: ${count}</span>
+                        </div>
+                    `;
+                }
+            });
+
+            html += `
                 </div>
 
                 <div class="info-section">
@@ -413,20 +450,24 @@
 
             // Add source nodes details
             if (categorized.sourceNodes.length > 0) {
-                html += '<h4 style="margin: 10px 0 5px 0; color: #4CAF50;">Sources:</h4>';
+                html += '<h4 style="margin: 10px 0 5px 0; color: #333;">Sources:</h4>';
                 categorized.sourceNodes.forEach(node => {
-                    html += `<div style="font-size: 12px; margin: 3px 0; padding: 5px; background: #e8f5e8; border-radius: 4px;">
-                        <strong>${node.name}</strong> (${node["Node Type"] || "Unknown"})
+                    const nodeType = node["Node Type"] || "Other";
+                    const color = getNodeTypeColor(nodeType);
+                    html += `<div style="font-size: 12px; margin: 3px 0; padding: 5px; background: ${color}20; border-left: 4px solid ${color}; border-radius: 4px;">
+                        <strong>${node.name}</strong> (${nodeType})
                     </div>`;
                 });
             }
 
             // Add target nodes details
             if (categorized.targetNodes.length > 0) {
-                html += '<h4 style="margin: 10px 0 5px 0; color: #2196F3;">Targets:</h4>';
+                html += '<h4 style="margin: 10px 0 5px 0; color: #333;">Targets:</h4>';
                 categorized.targetNodes.forEach(node => {
-                    html += `<div style="font-size: 12px; margin: 3px 0; padding: 5px; background: #e3f2fd; border-radius: 4px;">
-                        <strong>${node.name}</strong> (${node["Node Type"] || "Unknown"})
+                    const nodeType = node["Node Type"] || "Other";
+                    const color = getNodeTypeColor(nodeType);
+                    html += `<div style="font-size: 12px; margin: 3px 0; padding: 5px; background: ${color}20; border-left: 4px solid ${color}; border-radius: 4px;">
+                        <strong>${node.name}</strong> (${nodeType})
                     </div>`;
                 });
             }
@@ -438,11 +479,92 @@
 
             infoPanel.innerHTML = html;
 
-            // Create node type chart
-            createBarChart('nodeTypeChart', nodeTypeStats, '#007bff');
+            // Create node type chart with colors
+            createColoredBarChart('nodeTypeChart', nodeTypeStats, nodeTypeColors);
             
             // Create connection type chart
-            createBarChart('connectionChart', connectionTypeStats, '#28a745');
+            createBarChart('connectionChart', connectionTypeStats, '#4b0002');
+        }
+
+        // Function to create colored bar charts
+        function createColoredBarChart(containerId, data, colorMap) {
+            const container = document.getElementById(containerId);
+            const margin = { top: 10, right: 10, bottom: 40, left: 10 };
+            const width = 300 - margin.left - margin.right;
+            const height = 150 - margin.bottom - margin.top;
+
+            // Clear previous chart
+            d3.select(`#${containerId}`).selectAll("*").remove();
+
+            const svg = d3.select(`#${containerId}`)
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const entries = Object.entries(data).filter(d => d[1] > 0);
+            if (entries.length === 0) return;
+
+            const x = d3.scaleBand()
+                .domain(entries.map(d => d[0]))
+                .range([0, width])
+                .padding(0.1);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(entries, d => d[1])])
+                .range([height, 0]);
+
+            // Add bars with colors
+            g.selectAll(".bar")
+                .data(entries)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d[0]))
+                .attr("width", x.bandwidth())
+                .attr("y", d => y(d[1]))
+                .attr("height", d => height - y(d[1]))
+                .attr("fill", d => colorMap[d[0]] || '#666');
+
+            // Add value labels on bars
+            g.selectAll(".bar-label")
+                .data(entries)
+                .enter().append("text")
+                .attr("class", "bar-label")
+                .attr("x", d => x(d[0]) + x.bandwidth() / 2)
+                .attr("y", d => y(d[1]) - 1)
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .style("fill", "#495057")
+                .text(d => d[1]);
+
+            // Add x-axis labels
+            g.selectAll(".x-label")
+                .data(entries)
+                .enter().append("text")
+                .attr("class", "x-label")
+                .attr("x", d => x(d[0]) + x.bandwidth() / 2)
+                .attr("y", height + 15)
+                .attr("text-anchor", "middle")
+                .style("font-size", "10px")
+                .style("fill", "#495057")
+                .each(function(d) {
+                    const text = d3.select(this);
+                    const words = d[0].split(/\s+/);
+                    text.text('');
+                    
+                    if (words.length > 1) {
+                        words.forEach((word, i) => {
+                            text.append('tspan')
+                                .attr('x', x(d[0]) + x.bandwidth() / 2)
+                                .attr('dy', i === 0 ? 0 : '10px')
+                                .text(word);
+                        });
+                    } else {
+                        text.text(d[0]);
+                    }
+                });
         }
 
         // Function to create bar charts
@@ -492,7 +614,7 @@
                 .enter().append("text")
                 .attr("class", "bar-label")
                 .attr("x", d => x(d[0]) + x.bandwidth() / 2)
-                .attr("y", d => y(d[1]) -1)
+                .attr("y", d => y(d[1]) - 5)
                 .attr("text-anchor", "middle")
                 .style("font-size", "12px")
                 .style("fill", "#495057")
@@ -635,13 +757,33 @@
                 .attr("class", "link")
                 .attr("marker-end", "url(#arrowhead)");
 
-            // Create nodes
+            // Create nodes with dynamic colors
             nodeElements = g.selectAll("circle")
                 .data(allNodes)
                 .enter()
                 .append("circle")
                 .attr("r", d => d.level === 'center' ? 18 : 12)
-                .attr("class", d => `${d.level}-node`)
+                .attr("fill", d => {
+                    if (d.level === 'center') {
+                        return '#FF5722'; // Keep center node original color
+                    } else {
+                        const nodeType = d["Node Type"] || "Other";
+                        return getNodeTypeColor(nodeType);
+                    }
+                })
+                .attr("stroke", d => {
+                    if (d.level === 'center') {
+                        return '#D84315';
+                    } else {
+                        const nodeType = d["Node Type"] || "Other";
+                        const color = getNodeTypeColor(nodeType);
+                        return d3.color(color).darker(0.5);
+                    }
+                })
+                .attr("stroke-width", d => d.level === 'center' ? 3 : 2)
+                .style("filter", d => d.level === 'center' ? 
+                    'drop-shadow(3px 3px 6px rgba(0,0,0,0.3))' : 
+                    'drop-shadow(2px 2px 4px rgba(0,0,0,0.2))')
                 .call(d3.drag()
                     .on("start", dragstarted)
                     .on("drag", dragged)
@@ -653,7 +795,8 @@
                 .enter()
                 .append("text")
                 .attr("class", d => `node-label ${d.level === 'center' ? 'center-label' : ''}`)
-                .text(d => d.name);
+                .text(d => d.name.length > 10 ? d.name.slice(0, 10) + "..." : d.name);
+
 
             // Create separate simulations for each level
             if (categorized.sourceNodes.length > 0) {
