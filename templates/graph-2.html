@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oceanus Folk - Visualizaciones de influencia</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style-2.css') }}">
+    <style>
+        /* opcional: ocultamos todo salvo el gráfico activo */
+        svg.graph { display:none; }
+    </style>
+</head>
+<body>
+    <h1>Oceanus Folk Influence Explorer</h1>
+
+    <label for="viewSelector"><strong>Elegir gráfico:</strong></label>
+    <select id="viewSelector">
+        <option value="timeline">¿Difusión intermitente o gradual?</option>
+        <option value="bars">Géneros y artistas más influenciados</option>
+        <option value="network">Red de influencias tras Sailor Shift</option>
+    </select>
+
+    <h2 id="title-timeline">1. ¿Difusión intermitente o gradual?</h2>
+    <svg id="timeline" class="graph" width="960" height="300"></svg>
+
+    <h2 id="title-bars">2. Géneros y artistas más influenciados</h2>
+    <svg id="bars" class="graph" width="960" height="400"></svg>   <!-- ← SIN coma -->
+
+    <h2 id="title-network">3. Red de influencias tras Sailor Shift</h2>
+    <svg id="network" class="graph" width="960" height="600"></svg>
+
+    <script src="{{ url_for('static', filename='js/graph-2.js') }}"></script>
+</body>
+</html>

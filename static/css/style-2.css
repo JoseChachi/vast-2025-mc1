@@ -1,0 +1,31 @@
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 1rem;
+    background: #f5f8fa;
+}
+
+h1, h2 {
+    margin: 0 0 .5rem 0;
+}
+
+svg {
+    max-width: 100%;
+    height: auto;
+}
+
+.axis path, .axis line {
+    stroke: #555;
+    shape-rendering: crispEdges;
+}
+
+.tooltip {
+    position: absolute;
+    padding: .4rem .6rem;
+    background: white;
+    border: 1px solid #999;
+    border-radius: 4px;
+    font-size: .85rem;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,.15);
+}

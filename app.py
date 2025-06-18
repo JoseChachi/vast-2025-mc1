@@ -11,6 +11,10 @@ def index():
 def index2():
     return render_template('otherlanding.html')
 
+@app.route('/question-2/')
+def question2():
+    return render_template('graph-2.html')
+
 @app.route('/data/<path:filename>')
 def data(filename):
     return send_from_directory('data', filename)
