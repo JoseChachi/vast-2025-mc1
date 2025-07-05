@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grafo Tripartito con Panel de Información</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .graph-container {
+            flex: 1;
+        }
+        .info-panel {
+            width: 400px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            max-height: 700px;
+            overflow-y: auto;
+        }
+        #graph {
+            width: 1400px;
+            height: 700px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #e3f2fd 0%, #ffffff 35%, #ffffff 65%, #f3e5f5 100%);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        #controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #results {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .center-node {
+            fill: #FF5722;
+            stroke: #D84315;
+            stroke-width: 3px;
+            filter: drop-shadow(3px 3px 6px rgba(0,0,0,0.3));
+        }
+        .link {
+            stroke: #666;
+            stroke-width: 2px;
+            stroke-opacity: 0.7;
+        }
+        button {
+            padding: 10px 18px;
+            margin: 5px;
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: linear-gradient(135deg, #0056b3, #004085);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        input {
+            padding: 10px;
+            margin: 5px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        .level-label {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #495057;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+        }
+        .node-label {
+            font-size: 11px;
+            font-weight: 500;
+            fill: #212529;
+            text-anchor: middle;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+        }
+        .center-label {
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .zone-border {
+            fill: none;
+            stroke: #dee2e6;
+            stroke-width: 1;
+            stroke-dasharray: 5,5;
+            opacity: 0.5;
+        }
+        .info-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .info-section h3 {
+            margin-top: 0;
+            color: #495057;
+            font-size: 16px;
+        }
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+        .stat-label {
+            font-weight: 500;
+            color: #495057;
+        }
+        .stat-value {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .chart-container {
+            margin: 15px 0;
+        }
+        .bar {
+            transition: fill 0.3s ease;
+        }
+        .bar:hover {
+            opacity: 0.8;
+        }
+        .axis {
+            font-size: 12px;
+            fill: #495057;
+        }
+        .legend {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .legend-center { background-color: #FF5722; }
+        .node-type-legend {
+            margin: 10px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .node-type-legend h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+        .node-type-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Grafo Tripartito con Panel de Información</h1>
+    
+    <div id="controls">
+        <input type="number" id="targetNodeInput" placeholder="Enter target node ID" value="-1">
+        <button onclick="loadTargetNode()">Load Network</button>
+        <button onclick="clearGraph()">Clear Graph</button>
+        <p id="currentTarget">Current target: -1</p>
+    </div>
+    
+    <div class="container">
+        <div class="graph-container">
+            <svg id="graph"></svg>
+            <div id="results"></div>
+        </div>
+        
+        <div class="info-panel" id="infoPanel">
+            <div class="info-section">
+                <h3>Información de la Red</h3>
+                <p>Selecciona un nodo para cargar la red</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const svg = d3.select("#graph");
+        const width = parseInt(svg.style("width"));
+        const height = parseInt(svg.style("height"));
+
+        // Create group for nodes and links
+        const g = svg.append("g");
+
+        // Define color palette for node types
+        const nodeTypeColors = {
+            'Person': '#9C27B0',      // Purple
+            'MusicalGroup': '#4CAF50', // Green
+            'RecordLabel': '#FF9800',     // Orange
+            'Album': '#2196F3',        // Blue
+            'Song': '#FFFF00',
+            'Other': '#607D8B'         // Blue Grey
+        };
+
+        // Function to get color for node type
+        function getNodeTypeColor(nodeType) {
+            return nodeTypeColors[nodeType] || nodeTypeColors['Other'];
+        }
+
+        // Define zones
+        const zones = {
+            source: { y: height * 0.05, height: height * 0.25 },
+            center: { y: height * 0.35, height: height * 0.3 },
+            target: { y: height * 0.7, height: height * 0.25 }
+        };
+
+        // Variables for canvas dragging
+        let currentTransform = d3.zoomIdentity;
+
+        // Zoom + pan function
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => {
+                currentTransform = event.transform;
+                g.attr("transform", currentTransform);
+            });
+
+        svg.call(zoom);
+
+        // Target node ID
+        let TARGET_NODE_ID = -1;
+        let originalData = null;
+
+        // Global variables
+        let allNodes = [];
+        let allLinks = [];
+        let sourceSimulation, centerSimulation, targetSimulation;
+        let nodeElements, linkElements, labelElements;
+
+        // Function to clear the current graph
+        function clearGraph() {
+            // Stop all simulations
+            if (sourceSimulation) sourceSimulation.stop();
+            if (centerSimulation) centerSimulation.stop();
+            if (targetSimulation) targetSimulation.stop();
+            
+            g.selectAll("*").remove();
+            document.getElementById('results').innerHTML = '';
+            updateInfoPanel(null);
+        }
+
+        // Function to load network for a target node
+        function loadTargetNode() {
+            const inputValue = document.getElementById('targetNodeInput').value;
+            if (!inputValue) {
+                alert('Please enter a node ID');
+                return;
+            }
+            
+            const nodeId = parseInt(inputValue);
+            TARGET_NODE_ID = nodeId;
+            
+            document.getElementById('currentTarget').textContent = `Current target: ${TARGET_NODE_ID}`;
+            clearGraph();
+            
+            if (originalData) {
+                createVisualization(originalData);
+            }
+        }
+
+        // Function to get connected subgraph
+        function getConnectedSubgraph(data, targetNodeId) {
+            const connectedLinks = data.links.filter(link => 
+                link.source === targetNodeId || link.target === targetNodeId
+            );
+
+            const connectedNodeIds = new Set([targetNodeId]);
+            connectedLinks.forEach(link => {
+                connectedNodeIds.add(link.source);
+                connectedNodeIds.add(link.target);
+            });
+
+            const connectedNodes = data.nodes.filter(node => 
+                connectedNodeIds.has(node.id)
+            );
+
+            return {
+                nodes: connectedNodes,
+                links: connectedLinks,
+                targetNodeId: targetNodeId
+            };
+        }
+
+        // Function to categorize nodes
+        function categorizeNodes(subgraph) {
+            const sourceNodes = [];
+            const targetNodes = [];
+            const centerNode = subgraph.nodes.find(n => n.id === subgraph.targetNodeId);
+
+            subgraph.links.forEach(link => {
+                if (link.source === subgraph.targetNodeId) {
+                    const targetNode = subgraph.nodes.find(n => n.id === link.target);
+                    if (targetNode && !targetNodes.find(n => n.id === targetNode.id)) {
+                        targetNodes.push(targetNode);
+                    }
+                }
+                if (link.target === subgraph.targetNodeId) {
+                    const sourceNode = subgraph.nodes.find(n => n.id === link.source);
+                    if (sourceNode && !sourceNodes.find(n => n.id === sourceNode.id)) {
+                        sourceNodes.push(sourceNode);
+                    }
+                }
+            });
+
+            return { sourceNodes, centerNode, targetNodes };
+        }
+
+        // Function to update info panel
+        function updateInfoPanel(subgraph) {
+            const infoPanel = document.getElementById('infoPanel');
+            
+            if (!subgraph) {
+                infoPanel.innerHTML = `
+                    <div class="info-section">
+                        <h3>Información de la Red</h3>
+                        <p>Selecciona un nodo para cargar la red</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const categorized = categorizeNodes(subgraph);
+            
+            // Get node type statistics
+            const nodeTypeStats = {};
+            const connectionTypeStats = {
+                'Source → Center': 0,
+                'Center → Target': 0
+            };
+
+            [...categorized.sourceNodes, categorized.centerNode, ...categorized.targetNodes]
+                .filter(n => n)
+                .forEach(node => {
+                    const nodeType = node["Node Type"] || "Other";
+                    nodeTypeStats[nodeType] = (nodeTypeStats[nodeType] || 0) + 1;
+                });
+
+            subgraph.links.forEach(link => {
+                if (link.target === subgraph.targetNodeId) {
+                    connectionTypeStats['Source → Center']++;
+                } else if (link.source === subgraph.targetNodeId) {
+                    connectionTypeStats['Center → Target']++;
+                }
+            });
+
+            // Build info panel HTML
+            let html = `
+                <div class="info-section">
+                    <h3>Resumen de la Red</h3>
+                    <div class="stat-item">
+                        <span class="stat-label">Nodo Central:</span>
+                        <span class="stat-value">${categorized.centerNode ? categorized.centerNode.name : 'N/A'}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Nodos:</span>
+                        <span class="stat-value">${subgraph.nodes.length}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Conexiones:</span>
+                        <span class="stat-value">${subgraph.links.length}</span>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Distribución por Nivel</h3>
+                    <div class="legend">
+                        <div class="legend-color" style="background: linear-gradient(45deg, ${Object.values(nodeTypeColors).join(', ')});"></div>
+                        <span>Sources: ${categorized.sourceNodes.length}</span>
+                    </div>
+                    <div class="legend">
+                        <div class="legend-color legend-center"></div>
+                        <span>Centro: 1</span>
+                    </div>
+                    <div class="legend">
+                        <div class="legend-color" style="background: linear-gradient(45deg, ${Object.values(nodeTypeColors).join(', ')});"></div>
+                        <span>Targets: ${categorized.targetNodes.length}</span>
+                    </div>
+                </div>
+
+                <div class="node-type-legend">
+                    <h4>Leyenda de Tipos de Nodo</h4>
+            `;
+
+            // Add legend for node types
+            Object.entries(nodeTypeColors).forEach(([nodeType, color]) => {
+                const count = nodeTypeStats[nodeType] || 0;
+                if (count > 0) {
+                    html += `
+                        <div class="node-type-item">
+                            <div class="legend-color" style="background-color: ${color};"></div>
+                            <span>${nodeType}: ${count}</span>
+                        </div>
+                    `;
+                }
+            });
+
+            html += `
+                </div>
+
+                <div class="info-section">
+                    <h3>Tipos de Nodos</h3>
+                    <div id="nodeTypeChart"></div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Tipos de Conexión</h3>
+                    <div id="connectionChart"></div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Detalles de Nodos</h3>
+                    <div style="max-height: 200px; overflow-y: auto;">
+            `;
+
+            // Add source nodes details
+            if (categorized.sourceNodes.length > 0) {
+                html += '<h4 style="margin: 10px 0 5px 0; color: #333;">Sources:</h4>';
+                categorized.sourceNodes.forEach(node => {
+                    const nodeType = node["Node Type"] || "Other";
+                    const color = getNodeTypeColor(nodeType);
+                    html += `<div style="font-size: 12px; margin: 3px 0; padding: 5px; background: ${color}20; border-left: 4px solid ${color}; border-radius: 4px;">
+                        <strong>${node.name}</strong> (${nodeType})
+                    </div>`;
+                });
+            }
+
+            // Add target nodes details
+            if (categorized.targetNodes.length > 0) {
+                html += '<h4 style="margin: 10px 0 5px 0; color: #333;">Targets:</h4>';
+                categorized.targetNodes.forEach(node => {
+                    const nodeType = node["Node Type"] || "Other";
+                    const color = getNodeTypeColor(nodeType);
+                    html += `<div style="font-size: 12px; margin: 3px 0; padding: 5px; background: ${color}20; border-left: 4px solid ${color}; border-radius: 4px;">
+                        <strong>${node.name}</strong> (${nodeType})
+                    </div>`;
+                });
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            infoPanel.innerHTML = html;
+
+            // Create node type chart with colors
+            createColoredBarChart('nodeTypeChart', nodeTypeStats, nodeTypeColors);
+            
+            // Create connection type chart
+            createBarChart('connectionChart', connectionTypeStats, '#4b0002');
+        }
+
+        // Function to create colored bar charts
+        function createColoredBarChart(containerId, data, colorMap) {
+            const container = document.getElementById(containerId);
+            const margin = { top: 10, right: 10, bottom: 40, left: 10 };
+            const width = 300 - margin.left - margin.right;
+            const height = 150 - margin.bottom - margin.top;
+
+            // Clear previous chart
+            d3.select(`#${containerId}`).selectAll("*").remove();
+
+            const svg = d3.select(`#${containerId}`)
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const entries = Object.entries(data).filter(d => d[1] > 0);
+            if (entries.length === 0) return;
+
+            const x = d3.scaleBand()
+                .domain(entries.map(d => d[0]))
+                .range([0, width])
+                .padding(0.1);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(entries, d => d[1])])
+                .range([height, 0]);
+
+            // Add bars with colors
+            g.selectAll(".bar")
+                .data(entries)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d[0]))
+                .attr("width", x.bandwidth())
+                .attr("y", d => y(d[1]))
+                .attr("height", d => height - y(d[1]))
+                .attr("fill", d => colorMap[d[0]] || '#666');
+
+            // Add value labels on bars
+            g.selectAll(".bar-label")
+                .data(entries)
+                .enter().append("text")
+                .attr("class", "bar-label")
+                .attr("x", d => x(d[0]) + x.bandwidth() / 2)
+                .attr("y", d => y(d[1]) - 1)
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .style("fill", "#495057")
+                .text(d => d[1]);
+
+            // Add x-axis labels
+            g.selectAll(".x-label")
+                .data(entries)
+                .enter().append("text")
+                .attr("class", "x-label")
+                .attr("x", d => x(d[0]) + x.bandwidth() / 2)
+                .attr("y", height + 15)
+                .attr("text-anchor", "middle")
+                .style("font-size", "10px")
+                .style("fill", "#495057")
+                .each(function(d) {
+                    const text = d3.select(this);
+                    const words = d[0].split(/\s+/);
+                    text.text('');
+                    
+                    if (words.length > 1) {
+                        words.forEach((word, i) => {
+                            text.append('tspan')
+                                .attr('x', x(d[0]) + x.bandwidth() / 2)
+                                .attr('dy', i === 0 ? 0 : '10px')
+                                .text(word);
+                        });
+                    } else {
+                        text.text(d[0]);
+                    }
+                });
+        }
+
+        // Function to create bar charts
+        function createBarChart(containerId, data, color) {
+            const container = document.getElementById(containerId);
+            const margin = { top: 10, right: 10, bottom: 40, left: 10 };
+            const width = 300 - margin.left - margin.right;
+            const height = 150 - margin.bottom - margin.top;
+
+            // Clear previous chart
+            d3.select(`#${containerId}`).selectAll("*").remove();
+
+            const svg = d3.select(`#${containerId}`)
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const entries = Object.entries(data);
+            if (entries.length === 0) return;
+
+            const x = d3.scaleBand()
+                .domain(entries.map(d => d[0]))
+                .range([0, width])
+                .padding(0.1);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(entries, d => d[1])])
+                .range([height, 0]);
+
+            // Add bars
+            g.selectAll(".bar")
+                .data(entries)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d[0]))
+                .attr("width", x.bandwidth())
+                .attr("y", d => y(d[1]))
+                .attr("height", d => height - y(d[1]))
+                .attr("fill", color);
+
+            // Add value labels on bars
+            g.selectAll(".bar-label")
+                .data(entries)
+                .enter().append("text")
+                .attr("class", "bar-label")
+                .attr("x", d => x(d[0]) + x.bandwidth() / 2)
+                .attr("y", d => y(d[1]) - 5)
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .style("fill", "#495057")
+                .text(d => d[1]);
+
+            // Add x-axis labels
+            g.selectAll(".x-label")
+                .data(entries)
+                .enter().append("text")
+                .attr("class", "x-label")
+                .attr("x", d => x(d[0]) + x.bandwidth() / 2)
+                .attr("y", height + 15)
+                .attr("text-anchor", "middle")
+                .style("font-size", "10px")
+                .style("fill", "#495057")
+                .each(function(d) {
+                    const text = d3.select(this);
+                    const words = d[0].split(/\s+/);
+                    text.text('');
+                    
+                    if (words.length > 1) {
+                        words.forEach((word, i) => {
+                            text.append('tspan')
+                                .attr('x', x(d[0]) + x.bandwidth() / 2)
+                                .attr('dy', i === 0 ? 0 : '10px')
+                                .text(word);
+                        });
+                    } else {
+                        text.text(d[0]);
+                    }
+                });
+        }
+
+        // Function to display network information
+        function displayNetworkInfo(subgraph) {
+            const resultsDiv = document.getElementById('results');
+            const targetNode = subgraph.nodes.find(n => n.id === subgraph.targetNodeId);
+            
+            let html = `<h3>Network for Node ${subgraph.targetNodeId}</h3>`;
+            
+            if (targetNode) {
+                html += `<p><strong>Center Node:</strong> ${targetNode.name} (Type: ${targetNode["Node Type"]})</p>`;
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        // Load data
+        function loadData(data) {
+            originalData = data;
+            createVisualization(data);
+        }
+
+        // Create visualization with physics
+        function createVisualization(data) {
+            const subgraph = getConnectedSubgraph(data, TARGET_NODE_ID);
+            
+            if (subgraph.nodes.length === 0) {
+                document.getElementById('results').innerHTML = 
+                    `<h3>Node ${TARGET_NODE_ID} not found in the data</h3>`;
+                updateInfoPanel(null);
+                return;
+            }
+
+            const categorized = categorizeNodes(subgraph);
+            displayNetworkInfo(subgraph);
+            updateInfoPanel(subgraph);
+
+            // Draw zone borders
+            Object.entries(zones).forEach(([zoneName, zone]) => {
+                g.append("rect")
+                    .attr("class", "zone-border")
+                    .attr("x", 50)
+                    .attr("y", zone.y)
+                    .attr("width", width - 100)
+                    .attr("height", zone.height);
+            });
+
+            // Add level labels
+            g.append("text")
+                .attr("class", "level-label")
+                .attr("x", 30)
+                .attr("y", zones.source.y + 20)
+                .text("Sources");
+
+            g.append("text")
+                .attr("class", "level-label")
+                .attr("x", 30)
+                .attr("y", zones.center.y + zones.center.height/2)
+                .text("Target");
+
+            g.append("text")
+                .attr("class", "level-label")
+                .attr("x", 30)
+                .attr("y", zones.target.y + 20)
+                .text("Targets");
+
+            // Prepare nodes with better initial positions
+            categorized.sourceNodes.forEach((node, i) => {
+                node.level = 'source';
+                const spacing = (width - 200) / (categorized.sourceNodes.length + 1);
+                node.x = 100 + spacing * (i + 1) + (Math.random() - 0.5) * 50;
+                node.y = zones.source.y + zones.source.height / 2 + (Math.random() - 0.5) * 40;
+            });
+
+            if (categorized.centerNode) {
+                categorized.centerNode.level = 'center';
+                categorized.centerNode.x = width / 2;
+                categorized.centerNode.y = zones.center.y + zones.center.height / 2;
+            }
+
+            categorized.targetNodes.forEach((node, i) => {
+                node.level = 'target';
+                const spacing = (width - 200) / (categorized.targetNodes.length + 1);
+                node.x = 100 + spacing * (i + 1) + (Math.random() - 0.5) * 50;
+                node.y = zones.target.y + zones.target.height / 2 + (Math.random() - 0.5) * 40;
+            });
+
+            allNodes = [...categorized.sourceNodes, categorized.centerNode, ...categorized.targetNodes].filter(n => n);
+            allLinks = subgraph.links;
+
+            // Add arrowhead marker
+            svg.append("defs").append("marker")
+                .attr("id", "arrowhead")
+                .attr("viewBox", "0 -5 10 10")
+                .attr("refX", 20)
+                .attr("refY", 0)
+                .attr("markerWidth", 6)
+                .attr("markerHeight", 6)
+                .attr("orient", "auto")
+                .append("path")
+                .attr("d", "M 0,-5 L 10,0 L 0,5")
+                .attr("fill", "#666");
+
+            // Create links
+            linkElements = g.selectAll("line")
+                .data(allLinks)
+                .enter()
+                .append("line")
+                .attr("class", "link")
+                .attr("marker-end", "url(#arrowhead)");
+
+            // Create nodes with dynamic colors
+            nodeElements = g.selectAll("circle")
+                .data(allNodes)
+                .enter()
+                .append("circle")
+                .attr("r", d => d.level === 'center' ? 18 : 12)
+                .attr("fill", d => {
+                    if (d.level === 'center') {
+                        return '#FF5722'; // Keep center node original color
+                    } else {
+                        const nodeType = d["Node Type"] || "Other";
+                        return getNodeTypeColor(nodeType);
+                    }
+                })
+                .attr("stroke", d => {
+                    if (d.level === 'center') {
+                        return '#D84315';
+                    } else {
+                        const nodeType = d["Node Type"] || "Other";
+                        const color = getNodeTypeColor(nodeType);
+                        return d3.color(color).darker(0.5);
+                    }
+                })
+                .attr("stroke-width", d => d.level === 'center' ? 3 : 2)
+                .style("filter", d => d.level === 'center' ? 
+                    'drop-shadow(3px 3px 6px rgba(0,0,0,0.3))' : 
+                    'drop-shadow(2px 2px 4px rgba(0,0,0,0.2))')
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+
+            // Create labels
+            labelElements = g.selectAll("text.node-label")
+                .data(allNodes)
+                .enter()
+                .append("text")
+                .attr("class", d => `node-label ${d.level === 'center' ? 'center-label' : ''}`)
+                .text(d => d.name.length > 10 ? d.name.slice(0, 10) + "..." : d.name);
+
+
+            // Create separate simulations for each level
+            if (categorized.sourceNodes.length > 0) {
+                sourceSimulation = d3.forceSimulation(categorized.sourceNodes)
+                    .force("charge", d3.forceManyBody().strength(-100))
+                    .force("x", d3.forceX(width / 2).strength(0.05))
+                    .force("y", d3.forceY(zones.source.y + zones.source.height / 2).strength(0.3))
+                    .force("collision", d3.forceCollide(30))
+                    .alpha(0.3)
+                    .alphaDecay(0.02)
+                    .on("tick", ticked);
+                
+                sourceSimulation.on("tick.bounds", () => {
+                    categorized.sourceNodes.forEach(node => {
+                        node.x = Math.max(100, Math.min(width - 100, node.x));
+                        node.y = Math.max(zones.source.y + 30, Math.min(zones.source.y + zones.source.height - 30, node.y));
+                    });
+                });
+            }
+
+            if (categorized.centerNode) {
+                centerSimulation = d3.forceSimulation([categorized.centerNode])
+                    .force("x", d3.forceX(width / 2).strength(0.5))
+                    .force("y", d3.forceY(zones.center.y + zones.center.height / 2).strength(0.5))
+                    .alpha(0.1)
+                    .on("tick", ticked);
+            }
+
+            if (categorized.targetNodes.length > 0) {
+                targetSimulation = d3.forceSimulation(categorized.targetNodes)
+                    .force("charge", d3.forceManyBody().strength(-100))
+                    .force("x", d3.forceX(width / 2).strength(0.05))
+                    .force("y", d3.forceY(zones.target.y + zones.target.height / 2).strength(0.3))
+                    .force("collision", d3.forceCollide(30))
+                    .alpha(0.3)
+                    .alphaDecay(0.02)
+                    .on("tick", ticked);
+                
+                targetSimulation.on("tick.bounds", () => {
+                    categorized.targetNodes.forEach(node => {
+                        node.x = Math.max(100, Math.min(width - 100, node.x));
+                        node.y = Math.max(zones.target.y + 30, Math.min(zones.target.y + zones.target.height - 30, node.y));
+                    });
+                });
+            }
+
+            function ticked() {
+                linkElements
+                    .attr("x1", d => {
+                        const sourceNode = allNodes.find(n => n.id === d.source);
+                        return sourceNode ? sourceNode.x : 0;
+                    })
+                    .attr("y1", d => {
+                        const sourceNode = allNodes.find(n => n.id === d.source);
+                        return sourceNode ? sourceNode.y : 0;
+                    })
+                    .attr("x2", d => {
+                        const targetNode = allNodes.find(n => n.id === d.target);
+                        return targetNode ? targetNode.x : 0;
+                    })
+                    .attr("y2", d => {
+                        const targetNode = allNodes.find(n => n.id === d.target);
+                        return targetNode ? targetNode.y : 0;
+                    });
+
+                nodeElements
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+
+                labelElements
+                    .attr("x", d => d.x)
+                    .attr("y", d => d.y + (d.level === 'center' ? 28 : 20));
+            }
+
+            function dragstarted(event, d) {
+                if (d.level === 'source' && sourceSimulation && !event.active) sourceSimulation.alphaTarget(0.3).restart();
+                if (d.level === 'center' && centerSimulation && !event.active) centerSimulation.alphaTarget(0.3).restart();
+                if (d.level === 'target' && targetSimulation && !event.active) targetSimulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragended(event, d) {
+                if (d.level === 'source' && sourceSimulation && !event.active) sourceSimulation.alphaTarget(0);
+                if (d.level === 'center' && centerSimulation && !event.active) centerSimulation.alphaTarget(0);
+                if (d.level === 'target' && targetSimulation && !event.active) targetSimulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+        }
+
+        // Load data
+        d3.json("/data/MC1_graph.json").then(loadData).catch(error => {
+            console.error("Error loading data:", error);
+            document.getElementById('results').innerHTML = 
+                '<h3>Error loading data. Please check if the file exists at /data/MC1_graph.json</h3>';
+        });
+
+        // Make functions globally accessible
+        window.loadTargetNode = loadTargetNode;
+        window.clearGraph = clearGraph;
+    </script>
+</body>
+</html>
