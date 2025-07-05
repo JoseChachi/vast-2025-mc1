@@ -1,7 +1,12 @@
 const FILE = "MC1_graph.json";
+
 const INFLUENCES_EDGES = new Set([
     "InStyleOf", "DirectlySamples", "CoverOf",
     "InterpolatesFrom", "LyricalReferenceTo"
+]);
+
+const INFLUENCES_ARTIST_EDGES = new Set([
+    "PerformerOf", "ProducerOf", "LyricistOf"
 ]);
 
 d3.json(`/data/${FILE}`).then(data => {
@@ -11,9 +16,10 @@ d3.json(`/data/${FILE}`).then(data => {
 
     /* Indexación útil */
     const byId = new Map(nodes.map(d => [d.id, d]));
-    const oceanusIds = new Set(nodes.filter(d => d.genre === "Oceanus Folk")
+    const oceanusIds = new Set(nodes.filter(d => d.genre === "Oceanus Folk" && d["Node Type"] === "Song")
                                     .map(d => d.id));
     const sailorShiftId = nodes.find(d => d.id === "Sailor Shift")?.id;
+
 
     /* ---------- 1. TIMELINE ---------- */
     const extInfluenced = [];
@@ -24,7 +30,7 @@ d3.json(`/data/${FILE}`).then(data => {
             if (sourceIsOceanus ^ targetIsOceanus) {
                 const other = byId.get(sourceIsOceanus ? l.target : l.source);
                 if (other?.release_date) {
-                    extInfluenced.push(other)
+                    extInfluenced.push(other) // solo canciones de Oceanus Folk que influyen en otros géneros
                 }
             }
         }
@@ -37,20 +43,57 @@ d3.json(`/data/${FILE}`).then(data => {
 
     drawTimeline(yearCounts);
 
-    /* ---------- 2. BARRAS (Géneros y artistas) ---------- */
-    const genreCounts = d3.sort(
-        Array.from(d3.rollup(extInfluenced, v=>v.length, d=>d.genre)),
-        ([,a], [,b]) => d3.descending(a, b)
-    ).slice(0, 12);
+    /* ---------- 2. BARRAS (géneros + artistas ÚNICOS) ---------- */
+    function getArtistsForSong(songId){
+        const artists = new Set();
 
-    const artistCounts = d3.sort(
-        Array.from(d3.rollup(
-            extInfluenced.filter(d => d["Node Type"] === "Song" && d.name),
-            v=>v.length, d=>d.name)),
-        ([,a], [,b]) => d3.descending(a, b)
-    ).slice(0, 12);
+        /* 2.a  Artistas que apuntan DIRECTO a la canción ------------------ */
+        links.forEach(l => {
+            if (INFLUENCES_ARTIST_EDGES.has(l["Edge Type"]) && l.target === songId){
+            artists.add(l.source);                // id del artista
+            }
+        });
 
-    drawBars(genreCounts, artistCounts);
+        /* 2.b  Artistas vía otra canción influyente ----------------------- */
+        links.forEach(l => {
+            if (INFLUENCES_EDGES.has(l["Edge Type"]) && l.target === songId){
+            const otherSong = l.source;           // id de la canción fuente
+            links.forEach(l2 => {
+                if (INFLUENCES_ARTIST_EDGES.has(l2["Edge Type"]) && l2.target === otherSong){
+                artists.add(l2.source);           // id del artista
+                }
+            });
+            }
+        });
+
+        /* devolvemos nombres limpios */
+        return Array.from(artists)
+                    .map(id => byId.get(id)?.name)
+                    .filter(Boolean);             // por si falta el nodo del artista
+    }
+
+    /* Construir mapa género → set de artistas --------------------------- */
+    const genreArtistMap = new Map();
+
+    extInfluenced.forEach(song => {
+    const genre    = song.genre || "Otro";
+    const artists  = getArtistsForSong(song.id);
+
+    if (!genreArtistMap.has(genre)){
+        genreArtistMap.set(genre, new Set());
+    }
+    artists.forEach(a => genreArtistMap.get(genre).add(a));
+    });
+
+    /* Convertimos el mapa en array y ordenamos -------------------------- */
+    const genreData = Array.from(genreArtistMap, ([genre, set]) => ({
+                        genre,
+                        artists: Array.from(set),
+                        count  : set.size
+                    }))
+                    .sort((a, b) => d3.descending(a.count, b.count));
+
+    drawBars(genreData);
 
     /* ---------- 3. RED POST SAILOR-SHIFT ---------- */
     const oceanusAfterShift = nodes.filter(d => d.genre === "Oceanus Folk" && +d.release_date >= 2024).map(d => d.id);
@@ -129,55 +172,89 @@ function drawTimeline(data){
 }
 
 /* ---------- DIBUJAR BARRAS ---------- */
-function drawBars(genreCounts, artistCounts){
+function drawBars(data) {
     const svg = d3.select("#bars"),
-            width   = +svg.attr("width"),
-            height  = +svg.attr("height"),
-            m = {top: 20,right: 20,bottom: 30,left: 160},
-            w = width - m.left - m.right,
-            h = height - m.top - m.bottom;
+        width  = +svg.attr("width"),
+        height = +svg.attr("height"),
+        m = { top: 20, right: 20, bottom: 30, left: 160 },
+        w = width  - m.left - m.right,
+        h = height - m.top  - m.bottom;
 
-    const all = genreCounts.map(([g,c])=>({label: g, count: c, type: "Género"}))
-                .concat(artistCounts.map(([a,c])=>({label: a, count: c, type: "Artista"})));
+    const y = d3.scaleBand()
+                .domain(data.map(d => d.genre))
+                .range([0, h])
+                .padding(0.15);
 
-    const y = d3.scaleBand().domain(all.map(d=>d.label))
-                            .range([0,h])
-                            .padding(0.1);
-
-    const x = d3.scaleLinear().domain([0, d3.max(all,d=>d.count)])
-                                .range([0, w]).nice();
-
-    const color = d3.scaleOrdinal().domain(["Género", "Artista"])
-                    .range(["#1f77b4","#ff7f0e"]);
+    const x = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.count)]).nice()
+                .range([0, w]);
 
     const g = svg.append("g")
-                    .attr("transform",`translate(${m.left},${m.top})`);
+                .attr("transform", `translate(${m.left},${m.top})`);
 
-    g.selectAll("rect")
-        .data(all)
-        .enter()
-        .append("rect")
-        .attr("y",d => y(d.label))
-        .attr("height",y.bandwidth())
-        .attr("width",d => x(d.count))
-        .attr("fill",d => color(d.type));
-
+g.selectAll("rect")
+    .data(data)
+    .enter().append("rect")
+        .attr("class", "bar")
+        .attr("y",  d => y(d.genre))
+        .attr("height", y.bandwidth())
+        .attr("width", d => x(d.count))
+        .attr("fill", "#1f77b4")
+        .style("cursor", "pointer")
+        .style("pointer-events", "all")          // ⬅ fuerza recepción de clicks
+        .on("click", function (event, d) {
+            console.clear();
+            console.log("click en barra:", d);   // ⬅ confirma que sí llega aquí
+            showTable(d);
+        });
+/* ➜ añade el mismo manejador a los textos por si el usuario 
+      hace click exactamente sobre la etiqueta numérica            */
     g.selectAll("text")
-        .data(all)
-        .enter()
-        .append("text")
-        .attr("x",d => x(d.count) + 4)
-        .attr("y",d => y(d.label) + y.bandwidth() / 2 + 4)
+    .data(data)
+    .enter().append("text")
+        .attr("x", d => x(d.count) + 4)
+        .attr("y", d => y(d.genre) + y.bandwidth() / 2 + 4)
+        .text(d => d.count)
+        .style("pointer-events", "all")
+        .on("click", function (event, d) {
+            console.log("click en texto:", d);
+            showTable(d);
+        });
+
+    /* Etiquetas de valor al final de la barra */
+    g.selectAll("text")
+    .data(data)
+    .enter().append("text")
+        .attr("x", d => x(d.count) + 4)
+        .attr("y", d => y(d.genre) + y.bandwidth() / 2 + 4)
         .text(d => d.count);
 
-    g.append("g")
-        .attr("class","axis")
-        .call(d3.axisLeft(y));
-    
-    g.append("g")
-        .attr("class","axis")
-        .attr("transform",`translate(0,${h})`)
+    /* Ejes */
+    g.append("g").attr("class", "axis").call(d3.axisLeft(y));
+    g.append("g").attr("class", "axis")
+        .attr("transform", `translate(0,${h})`)
         .call(d3.axisBottom(x));
+}
+
+/* ---------- TABLA DE ARTISTAS POR GÉNERO ---------- */
+function showTable(d){
+    const cont = d3.select('#artistTable');
+    cont.selectAll('*').remove();   // limpia
+
+    cont.append('h3')
+        .text(`Artistas influenciados en ${d.genre} (${d.count})`);
+
+    const table  = cont.append('table').attr('class','artist-table');
+    const header = table.append('thead').append('tr');
+    header.append('th').text('Artista');
+
+    const rows = table.append('tbody')
+                        .selectAll('tr')
+                        .data(d.artists)
+                        .enter()
+                        .append('tr');
+
+    rows.append('td').text(a => a);
 }
 
 /* ---------- DIBUJAR RED ---------- */
