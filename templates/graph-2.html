@@ -5,39 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Oceanus Folk - Visualizaciones de influencia</title>
 
-    <!-- D3 -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
-
-    <!-- Tus estilos -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style-2.css') }}">
 
     <style>
-        /* (opcional) oculta todo salvo el gráfico activo */
         svg.graph { display: none; }
-
-        /* estilo rápido para la tabla de artistas */
-        .artist-table {
-            border-collapse: collapse;
-            margin-top: 1rem;
-            width: 100%;
-        }
-        .artist-table th,
-        .artist-table td {
-            border: 1px solid #ccc;
-            padding: 0.4rem 0.6rem;
-            text-align: left;
-        }
-        .artist-table tr:nth-child(even) { background: #f9f9f9; }
+        .artist-table { border-collapse: collapse; margin-top: 1rem; width: 100%; }
+        .artist-table th, .artist-table td { border: 1px solid #ccc; padding: .4rem .6rem; text-align: left; }
+        .artist-table tr:nth-child(even) { background:#f9f9f9; }
     </style>
-</head>
-<body>
+    </head>
+    <body>
     <h1>Oceanus Folk Influence Explorer</h1>
 
     <label for="viewSelector"><strong>Elegir gráfico:</strong></label>
     <select id="viewSelector">
         <option value="timeline">¿Difusión intermitente o gradual?</option>
         <option value="bars">Géneros y artistas más influenciados</option>
-        <option value="network">Red de influencias tras Sailor Shift</option>
+        <option value="box">Evolución caja-año post-Sailor</option>
     </select>
 
     <!-- 1. TIMELINE -->
@@ -47,15 +32,35 @@
     <!-- 2. BARRAS -->
     <h2 id="title-bars">2. Géneros y artistas más influenciados</h2>
     <svg id="bars" class="graph" width="960" height="400"></svg>
-
-    <!-- 🔹 Contenedor donde se insertará la tabla con artistas al hacer clic en una barra -->
     <div id="artistTable"></div>
 
-    <!-- 3. NETWORK -->
-    <h2 id="title-network">3. Red de influencias tras Sailor Shift</h2>
-    <svg id="network" class="graph" width="960" height="600"></svg>
+    <!-- 3. Caja acumulada post-Sailor -->
+    <h2 id="title-box">3. Evolución acumulada post-Sailor</h2>
 
-    <!-- JS principal (ya incluye la lógica de barras + tabla) -->
+    <div id="boxPane" style="position:relative;">
+    <!-- slider debajo de la caja -->
+
+    <div id="yearBoxWrap" style="display:none;gap:8px">        
+        <input id="yearBoxSlider" type="range" style="width:260px">
+        <div id="yearBoxCtrl">                                  
+            <button id="bPrev">⏮</button>                      
+            <button id="bPlay">⏯</button>                      
+            <button id="bNext">⏭</button>                      
+        </div>                                                  
+    </div>                 
+
+    <svg id="boxChart" class="graph" width="960" height="460"></svg>
+    </div>
+
+    <!-- tooltip flotante para todos los gráficos -->
+    <div id="tooltip"
+        style="position:absolute;pointer-events:none;
+                background:rgba(0,0,0,.75);color:#fff;
+                padding:6px 8px;border-radius:4px;
+                font:12px sans-serif;opacity:0;">
+    </div>
+
+    <!-- JS principal -->
     <script src="{{ url_for('static', filename='js/graph-2.js') }}"></script>
 </body>
 </html>
