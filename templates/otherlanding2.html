@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,7 +30,7 @@
         }
         #graph {
             width: 1400px;
-            height: 700px;
+            height: 800px;
             border: 2px solid #dee2e6;
             border-radius: 10px;
             background: linear-gradient(180deg, #e3f2fd 0%, #ffffff 35%, #ffffff 65%, #f3e5f5 100%);
@@ -83,6 +84,7 @@
             border-radius: 6px;
             font-size: 14px;
             transition: border-color 0.3s ease;
+            width: 300px;
         }
         input:focus {
             outline: none;
@@ -112,6 +114,20 @@
             stroke-width: 1;
             stroke-dasharray: 5,5;
             opacity: 0.5;
+        }
+        .timeline {
+            stroke: #333;
+            stroke-width: 2px;
+        }
+        .timeline-tick {
+            stroke: #333;
+            stroke-width: 1px;
+        }
+        .timeline-label {
+            font-size: 12px;
+            font-weight: 500;
+            fill: #333;
+            text-anchor: middle;
         }
         .info-section {
             margin-bottom: 20px;
@@ -184,16 +200,56 @@
             margin: 5px 0;
             font-size: 12px;
         }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            pointer-events: none;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .search-suggestions {
+            position: absolute;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            width: 300px;
+            margin-left: 5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .suggestion-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .suggestion-item:hover {
+            background: #f8f9fa;
+        }
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
     </style>
 </head>
 <body>
     <h1>Grafo Tripartito con Panel de Información</h1>
     
     <div id="controls">
-        <input type="number" id="targetNodeInput" placeholder="Enter target node ID" value="-1">
+        <div style="position: relative; display: inline-block;">
+            <input type="text" id="targetNodeInput" placeholder="Buscar por nombre (ej: 'Sailor Shift')" value="">
+            <div id="searchSuggestions" class="search-suggestions" style="display: none;"></div>
+        </div>
         <button onclick="loadTargetNode()">Load Network</button>
         <button onclick="clearGraph()">Clear Graph</button>
-        <p id="currentTarget">Current target: -1</p>
+        <p id="currentTarget">Busca un nodo para cargar la red</p>
     </div>
     
     <div class="container">
@@ -218,6 +274,11 @@
         // Create group for nodes and links
         const g = svg.append("g");
 
+        // Create tooltip
+        const tooltip = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
         // Define color palette for node types
         const nodeTypeColors = {
             'Person': '#9C27B0',      // Purple
@@ -233,28 +294,26 @@
             return nodeTypeColors[nodeType] || nodeTypeColors['Other'];
         }
 
-        // Define zones
+        // Define zones with more space for timelines
         const zones = {
-            source: { y: height * 0.05, height: height * 0.25 },
-            center: { y: height * 0.35, height: height * 0.3 },
-            target: { y: height * 0.7, height: height * 0.25 }
+            source: { y: height * 0.15, height: height * 0.25 },
+            center: { y: height * 0.45, height: height * 0.2 },
+            target: { y: height * 0.7, height: height * 0.2 }
         };
 
-        // Variables for canvas dragging
-        let currentTransform = d3.zoomIdentity;
-
-        // Zoom + pan function
-        const zoom = d3.zoom()
-            .scaleExtent([0.1, 4])
-            .on("zoom", (event) => {
-                currentTransform = event.transform;
-                g.attr("transform", currentTransform);
-            });
-
-        svg.call(zoom);
+        // Timeline configuration
+        const timelineConfig = {
+            startYear: 1980,
+            endYear: 2000,
+            topY: zones.source.y - 40,
+            bottomY: zones.target.y + zones.target.height + 20,
+            leftX: 100,
+            rightX: width - 100
+        };
 
         // Target node ID
         let TARGET_NODE_ID = -1;
+        let TARGET_NODE_NAME = '';
         let originalData = null;
 
         // Global variables
@@ -262,6 +321,113 @@
         let allLinks = [];
         let sourceSimulation, centerSimulation, targetSimulation;
         let nodeElements, linkElements, labelElements;
+
+        // Search functionality
+        let searchTimeout;
+        const searchInput = document.getElementById('targetNodeInput');
+        const searchSuggestions = document.getElementById('searchSuggestions');
+
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                showSearchSuggestions(this.value);
+            }, 300);
+        });
+
+        searchInput.addEventListener('blur', function() {
+            setTimeout(() => {
+                searchSuggestions.style.display = 'none';
+            }, 200);
+        });
+
+        function showSearchSuggestions(query) {
+            if (!originalData || query.length < 2) {
+                searchSuggestions.style.display = 'none';
+                return;
+            }
+
+            const matches = originalData.nodes
+                .filter(node => node.name.toLowerCase().includes(query.toLowerCase()))
+                .slice(0, 10);
+
+            if (matches.length === 0) {
+                searchSuggestions.style.display = 'none';
+                return;
+            }
+
+            searchSuggestions.innerHTML = matches
+                .map(node => `<div class="suggestion-item" onclick="selectNode('${node.name}', ${node.id})">${node.name}</div>`)
+                .join('');
+            
+            searchSuggestions.style.display = 'block';
+        }
+
+        function selectNode(nodeName, nodeId) {
+            searchInput.value = nodeName;
+            TARGET_NODE_ID = nodeId;
+            TARGET_NODE_NAME = nodeName;
+            searchSuggestions.style.display = 'none';
+        }
+
+        // Function to create timelines
+        function createTimelines() {
+            const timeScale = d3.scaleLinear()
+                .domain([timelineConfig.startYear, timelineConfig.endYear])
+                .range([timelineConfig.leftX, timelineConfig.rightX]);
+
+            // Top timeline
+            g.append("line")
+                .attr("class", "timeline")
+                .attr("x1", timelineConfig.leftX)
+                .attr("y1", timelineConfig.topY)
+                .attr("x2", timelineConfig.rightX)
+                .attr("y2", timelineConfig.topY);
+
+            // Bottom timeline
+            g.append("line")
+                .attr("class", "timeline")
+                .attr("x1", timelineConfig.leftX)
+                .attr("y1", timelineConfig.bottomY)
+                .attr("x2", timelineConfig.rightX)
+                .attr("y2", timelineConfig.bottomY);
+
+            // Add year marks and labels
+            const years = d3.range(timelineConfig.startYear, timelineConfig.endYear + 1, 5);
+            
+            years.forEach(year => {
+                const x = timeScale(year);
+                
+                // Top timeline ticks
+                g.append("line")
+                    .attr("class", "timeline-tick")
+                    .attr("x1", x)
+                    .attr("y1", timelineConfig.topY - 5)
+                    .attr("x2", x)
+                    .attr("y2", timelineConfig.topY + 5);
+
+                // Top timeline labels
+                g.append("text")
+                    .attr("class", "timeline-label")
+                    .attr("x", x)
+                    .attr("y", timelineConfig.topY - 10)
+                    .text(year);
+
+                // Bottom timeline ticks
+                g.append("line")
+                    .attr("class", "timeline-tick")
+                    .attr("x1", x)
+                    .attr("y1", timelineConfig.bottomY - 5)
+                    .attr("x2", x)
+                    .attr("y2", timelineConfig.bottomY + 5);
+
+                // Bottom timeline labels
+                g.append("text")
+                    .attr("class", "timeline-label")
+                    .attr("x", x)
+                    .attr("y", timelineConfig.bottomY + 20)
+                    .text(year);
+            });
+        }
 
         // Function to clear the current graph
         function clearGraph() {
@@ -277,21 +443,34 @@
 
         // Function to load network for a target node
         function loadTargetNode() {
-            const inputValue = document.getElementById('targetNodeInput').value;
+            const inputValue = document.getElementById('targetNodeInput').value.trim();
             if (!inputValue) {
-                alert('Please enter a node ID');
+                alert('Please enter a node name');
                 return;
             }
             
-            const nodeId = parseInt(inputValue);
-            TARGET_NODE_ID = nodeId;
+            if (!originalData) {
+                alert('Data not loaded yet');
+                return;
+            }
+
+            // Find node by name
+            const foundNode = originalData.nodes.find(node => 
+                node.name.toLowerCase() === inputValue.toLowerCase()
+            );
+
+            if (!foundNode) {
+                alert(`Node with name "${inputValue}" not found`);
+                return;
+            }
+
+            TARGET_NODE_ID = foundNode.id;
+            TARGET_NODE_NAME = foundNode.name;
             
-            document.getElementById('currentTarget').textContent = `Current target: ${TARGET_NODE_ID}`;
+            document.getElementById('currentTarget').textContent = `Current target: ${TARGET_NODE_NAME} (ID: ${TARGET_NODE_ID})`;
             clearGraph();
             
-            if (originalData) {
-                createVisualization(originalData);
-            }
+            createVisualization(originalData);
         }
 
         // Function to get connected subgraph
@@ -683,6 +862,8 @@
             displayNetworkInfo(subgraph);
             updateInfoPanel(subgraph);
 
+            // createTimelines();
+
             // Draw zone borders
             Object.entries(zones).forEach(([zoneName, zone]) => {
                 g.append("rect")
@@ -765,7 +946,7 @@
                 .attr("r", d => d.level === 'center' ? 18 : 12)
                 .attr("fill", d => {
                     if (d.level === 'center') {
-                        return '#FF5722'; // Keep center node original color
+                        return '#FF5722';
                     } else {
                         const nodeType = d["Node Type"] || "Other";
                         return getNodeTypeColor(nodeType);
@@ -784,10 +965,33 @@
                 .style("filter", d => d.level === 'center' ? 
                     'drop-shadow(3px 3px 6px rgba(0,0,0,0.3))' : 
                     'drop-shadow(2px 2px 4px rgba(0,0,0,0.2))')
+                .on("mouseover", function(event, d) {
+                    // Mostrar tooltip
+                    const nodeType = d["Node Type"] || "Other";
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+                    tooltip.html(`
+                        <strong>${d.name}</strong><br/>
+                        <strong>Tipo:</strong> ${nodeType}<br/>
+                        <strong>ID:</strong> ${d.id}<br/>
+                        <strong>Nivel:</strong> ${d.level}
+                    `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", function(d) {
+                    // Ocultar tooltip
+                    tooltip.transition()
+                        .duration(500)
+                        .style("opacity", 0);
+                })
                 .call(d3.drag()
                     .on("start", dragstarted)
                     .on("drag", dragged)
                     .on("end", dragended));
+
+                createTimelines();
 
             // Create labels
             labelElements = g.selectAll("text.node-label")
