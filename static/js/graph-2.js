@@ -10,6 +10,9 @@ const INFLUENCES_ARTIST_EDGES = new Set([
     "PerformerOf", "ProducerOf", "LyricistOf"
 ]);
 
+const legendBox  = d3.select("#legendBox");
+const artistBox  = d3.select("#artistTable");   // ya existía, solo alias útil
+
 d3.json(`/data/${FILE}`).then(data => {
     // los nombres de las claves vienen exactamente así:
     const nodes = data.nodes;
@@ -33,6 +36,8 @@ d3.json(`/data/${FILE}`).then(data => {
     let yearMin, yearMax;       // se rellenan la primera vez que se pinta
     let playing  = false;
     let timer    = null;
+
+    let genres, color;   // se rellenan en drawBoxChart
 
     let wrap = d3.select("#yearBoxWrap");
     if (wrap.empty()){                       // si no existe, lo creamos
@@ -93,6 +98,30 @@ d3.json(`/data/${FILE}`).then(data => {
 
     drawTimeline(yearCounts);
 
+    function buildTimelineTable(yearData){
+        legendBox.selectAll("*").remove();        // limpia el panel
+
+        legendBox.append("h3")
+                .attr("class","side-title")
+                .text("Canciones influenciadas por año");
+
+        const table = legendBox.append("table")
+            .attr("class","artist-table");        // reaprovechamos estilo
+
+        const thead = table.append("thead").append("tr");
+        thead.append("th").text("Año");
+        thead.append("th").text("Cantidad");
+
+        const tbody = table.append("tbody");
+
+        tbody.selectAll("tr")
+            .data(yearData)
+            .enter().append("tr")
+                .html(d => `<td>${d.year}</td><td>${d.count}</td>`);
+    }
+
+    buildTimelineTable(yearCounts);
+
 
     /* =========================================================
    * 2. BARRAS  (géneros + artistas ÚNICOS)
@@ -147,35 +176,50 @@ d3.json(`/data/${FILE}`).then(data => {
     /* ----------  SELECTOR DE VISTA  ------------------------- */
     setVisible("timeline");        // vista inicial
 
+    d3.select("body").classed("loading", false);
+
     d3.select("#viewSelector").on("change", function(){
         setVisible(this.value);
     });
 
     function setVisible(view){
-        d3.selectAll("svg.graph").style("display","none");
-        d3.select("#artistTable").style("display","none");
-        d3.selectAll("h2").style("display","none");
+        d3.selectAll("svg.graph").style("display", "none");
+        d3.selectAll("h2").style("display", "none");
 
-        wrap.style("display", view==="box" ? "flex" : "none");
+        wrap.style("display", view === "box" ? "flex" : "none");
 
-        if (view === "evolution"){
-            d3.select("#evoNet").style("display","block");
-            d3.select("#evoCloud").style("display","block");
-        } else if (view === "box"){
-            d3.select("#boxChart").style("display","block");
-            // solo la primera vez que entro creo la gráfica y obtengo update
-            if (!boxUpdater){
-                boxUpdater = drawBoxChart();  // y obtengo su update(year)
-                
-                bPrev .on("click", () => step(-1));
-                bNext .on("click", () => step(+1));
-                bPlay .on("click", togglePlay);
+        // limpiar el panel derecho siempre
+        legendBox.style("display", "none").selectAll("*").remove();
+        artistBox.style("display", "none").selectAll("*").remove();
+
+        if (view === "evolution") {
+            d3.select("#evoNet").style("display", "block");
+            d3.select("#evoCloud").style("display", "block");
+
+        } else if (view === "box") {
+            d3.select("#boxChart").style("display", "block");
+            legendBox.style("display", null);  // ← activa leyenda
+
+            if (!boxUpdater) {
+                boxUpdater = drawBoxChart(); // genera gráfico y leyenda
+                bPrev.on("click", () => step(-1));
+                bNext.on("click", () => step(+1));
+                bPlay.on("click", togglePlay);
+            } else {
+                buildBoxLegend(genres, color);
             }
-        } else {
-            d3.select(`#${view}`).style("display","block");
-            if (view === "bars") d3.select("#artistTable").style("display",null);
+
+        } else if (view === "bars") {
+            d3.select("#bars").style("display", "block");
+            artistBox.style("display", null);  // ← activa tabla de artistas
+
+        } else if (view === "timeline") {
+            d3.select("#timeline").style("display", "block");
+            legendBox.style("display", null); // ← activa tabla de años
+            buildTimelineTable(yearCounts);   // ← rellena la tabla
         }
-        d3.select(`#title-${view}`).style("display",null);
+
+        d3.select(`#title-${view}`).style("display", null);
     }
 
     /* =========================================================
@@ -376,9 +420,32 @@ d3.json(`/data/${FILE}`).then(data => {
         }
     }
 
+    function buildBoxLegend(genres, color){
+        legendBox.selectAll("*").remove();
+
+        const lg = legendBox.append("div");
+        lg.append("h3").attr("class","side-title")
+        .text("Género influencia dominante");
+
+        genres.forEach(gname => {
+            const row = lg.append("div")
+                .style("display","flex")
+                .style("align-items","center")
+                .style("margin","4px 0");
+            row.append("div")
+                .style("width","14px")
+                .style("height","14px")
+                .style("margin-right","8px")
+                .style("background-color", color(gname));
+            row.append("span").text(gname);
+        });
+    }
+
     function drawBoxChart(){
         /* ---- parámetros visuales ---- */
-        const boxW = 360, col = 12, r0 = 6,
+        const boxW = 520,
+                col  = 13,
+                r0   = 6,
                 padX = 10, padY = 10;
 
         /* ---- datos pos-Sailor ---- */
@@ -392,11 +459,11 @@ d3.json(`/data/${FILE}`).then(data => {
         yearMax = years.at(-1);
 
         /* ---- paleta de géneros externos ---- */
-        const genres = Array.from(
+        genres = Array.from(
                 new Set(condensed.map(l=>byId.get(l.source)?.genre).filter(Boolean))
             ).concat("Sin influencia");
 
-        const color = d3.scaleOrdinal()
+        color = d3.scaleOrdinal()
                 .domain(genres)
                 .range(d3.schemeTableau10.concat(d3.schemePaired)
                     .slice(0, genres.length));
@@ -421,18 +488,7 @@ d3.json(`/data/${FILE}`).then(data => {
                 .attr("fill","#ececec").attr("stroke","#666");
 
         /* ---- leyenda ---- */
-        const lg = svg.append("g")
-                .attr("transform",`translate(${W-m.right+10},${m.top})`)
-                .attr("font-family","sans-serif").attr("font-size","11px");
-
-        genres.forEach((gname,i)=>{
-            lg.append("rect").attr("x",0).attr("y",i*18)
-                .attr("width",14).attr("height",14)
-                .attr("fill",color(gname));
-            lg.append("text").attr("x",20).attr("y",i*18+11).text(gname);
-        });
-        lg.append("text").attr("x",0).attr("y",-10)
-            .attr("font-weight","bold").text("Género influencia dominante");
+        buildBoxLegend(genres, color);
 
         /* ---- indicador ---- */
         const info = svg.append("text")
