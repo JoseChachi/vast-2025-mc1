@@ -48,9 +48,9 @@ def get_music_data():
 def algo1():
     return render_template('otherlanding.html')
 
-@app.route('/algo2') 
-def algo2():
-    return render_template('otherrlanding2.html')
+@app.route('/p3') 
+def p3():
+    return render_template('index_3.html')
 
 
 if __name__ == '__main__':
