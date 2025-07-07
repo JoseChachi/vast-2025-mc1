@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tarea 3</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      background: #f5f5f5;
+      margin: 20px;
+      color: #333;
+    }
+    .chart {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-top: 16px;
+      margin-bottom: 10px;
+    }
+    .chart > h2 {
+    margin: 0;           
+    padding: 0;         
+    font-size: 1.5rem;  
+    line-height: 1.2;  
+    }
+
+    .chart > h2 + * {
+    margin-top: 8px;    
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-weight: 500;
+      font-size: 1.1rem;
+      color: #444;
+    }
+
+    /* ====== CONTENEDOR PRINCIPAL ====== */
+    #dashboard-main {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      margin-bottom: 40px;
+    }
+    #dashboard-main > .chart {
+      flex: 1;
+      min-width: 793px;
+      max-width: 500px;
+    }
+
+    /* ====== TABLA ====== */
+    #table table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      table-layout: fixed;
+      margin-bottom: 12px;
+    }
+
+    #table > h2 {
+    margin-bottom: -10px;  /* espacio muy reducido antes de la tabla */
+    }
+
+    #table .btn-clear {
+    margin-bottom: 2px;  /* poco espacio tras el botón */
+    }
+
+    #table thead {
+      background: #2c3e50;
+      color: #ecf0f1;
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+    }
+    #table th, #table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #ecf0f1;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #table tbody {
+      display: block;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    #table tbody tr {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+    }
+    #table tbody tr:nth-child(odd) {
+      background: #ecf0f1;
+    }
+    #table tbody tr:hover {
+      background: #d0d7de;
+    }
+    select {
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 0.9rem;
+    }
+    input[type="checkbox"] {
+      transform: scale(1.2);
+      margin-right: 6px;
+    }
+
+    /* ====== Mejoras para el dropdown ====== */
+    #genreDropdown {
+    /* Forma de “pill” */
+    padding: 6px 12px;
+    border: none;
+    border-radius: 20px;
+    background: #ecf0f1;
+    font-size: 0.9rem;
+    cursor: pointer;
+    /* Flecha custom SVG, tamaño reducido */
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    transition: background 0.2s, box-shadow 0.2s;
+    }
+    #genreDropdown:hover {
+    background: #dde4ea;
+    }
+    #genreDropdown:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 73, 94, 0.3);
+    }
+
+    /* ====== Destacar la columna Nombre ====== */
+    /* Ponemos un borde izquierdo y tipografía más marcada */
+    #table td:nth-child(3) {
+    font-weight: 600;
+    color: #2c3e50;
+    position: relative;
+    padding-left: 16px;
+    }
+
+    /* ====== LÍNEA DE TIEMPO ====== */
+    #timeChart { width: 100%; height: 230px; }
+    .line { fill: none; stroke-width: 2.5px; }
+    .axis path, .axis line { stroke: #ccc; stroke-opacity: 0.5; }
+    .slider-block { fill: rgba(46, 134, 193, 0.2); cursor: ew-resize; }
+    .slider-line { stroke: #2c3e50; stroke-width: 2px; }
+    .slider-year { fill: #2c3e50; font-size: 0.9rem; text-anchor: middle; }
+
+    /* ====== RRG + LEYENDA ====== */
+    #rrg .rrg-container {
+      display: flex;
+      align-items: flex-start;
+    }
+    #rrgChart { background: #fafafa; }
+    .quadrant { opacity: 0.2; }
+    .axis-rrg .domain { stroke: #888; stroke-opacity: 0.5; }
+    .axis-rrg .tick line {
+      stroke: #ccc;
+      stroke-opacity: 0;
+    }
+    .quad-label {
+      font-size: 0.95rem;
+      fill: #666;
+      text-anchor: middle;
+    }
+    .track {
+      fill: none;
+      stroke-width: 2.5px;
+    }
+    .dot {
+      stroke: #fff;
+      stroke-width: 1px;
+    }
+    #rrgLegend {
+      margin-left: 20px;
+      font-size: 0.9rem;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
+    /* ====== RELACIONES ====== */
+    #relationships.chart {
+      height: 634px;
+      overflow-y: auto;
+    }
+    #relationships h2 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 1.1rem;
+      color: #444;
+    }
+    #relList {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .rel-item {
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+
+    #graphViz {
+    width: 100%;
+    height: 470px;
+    background: #fafafa;
+    border: 1px solid #ddd;
+    margin-bottom: 12px;
+    }
+
+    /* CSS para un botón limpio con sombra suave y transiciones */
+    .btn-clear {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #2c3e50;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: 
+        background-color 0.2s, 
+        border-color 0.2s, 
+        box-shadow 0.2s, 
+        color 0.2s;
+    }
+
+    .btn-clear:hover {
+    background-color: #f0f4f8;
+    border-color: #b0bec5;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    color: #1f77b4;
+    }
+
+    .btn-clear:active {
+    background-color: #e0e7ed;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .btn-clear:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(31,119,196,0.3);
+    }
+
+
+  </style>
+</head>
+<body>
+
+  <!-- 1) LÍNEA DE TIEMPO -->
+  <div id="timeline" class="chart">
+    <h2>Evolución Popularidad/Influencia</h2>
+    <svg id="timeChart"></svg>
+  </div>
+
+  <!-- 2) CONTENEDOR FLEX: RRG y RELACIONES lado a lado -->
+  <div id="dashboard-main">
+    <!-- a) RRG -->
+    <div id="rrg" class="chart">
+      <h2>Comparacion Popularidad/Influencia</h2>
+      <div class="rrg-container">
+        <svg id="rrgChart" width="600" height="600"></svg>
+        <div id="rrgLegend"></div>
+      </div>
+    </div>
+
+    <!-- b) RELACIONES -->
+    <div id="relationships" class="chart">
+    <h2>Relaciones Popularidad e Influencia</h2>
+
+    <!-- 1) Grafo visual -->
+    <svg id="graphViz"></svg>
+    <div id="graphLegend"></div> <!-- Aquí irá la leyenda -->
+
+    </div>
+
+  </div>
+
+  <!-- 3) TABLA -->
+  <div id="table" class="chart">
+    <h2>Artistas</h2>
+    <div style="margin-bottom: 12px; text-align: right;">
+        <button id="clearSelectionBtn" class="btn-clear">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right:4px;">
+            <path d="M6.5 1a.5.5 0 0 1 .5.5V2h2v-.5a.5.5 0 0 1 1 0V2h1.5A1.5 1.5 0 0 1 13 3.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 0 11.5 3H4.5A.5.5 0 0 0 4 3.5v1a.5.5 0 0 1-1 0v-1A1.5 1.5 0 0 1 4.5 2H6v-.5a.5.5 0 0 1 .5-.5z"/>
+            <path d="M4.5 5A.5.5 0 0 1 5 4.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm1 1a.5.5 0 0 1 .5.5V13a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2V6.5a.5.5 0 0 1 1 0V13a3 3 0 0 1-3 3h-1a3 3 0 0 1-3-3V6.5a.5.5 0 0 1 .5-.5z"/>
+        </svg>
+        Limpiar selección
+        </button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>
+            <select id="genreDropdown"><option>Genero (Todos)</option></select>
+          </th>
+          <th>Tipo</th>
+          <th>Δ Pop %</th>
+          <th>Δ Inf %</th>
+          <th>Score Total Pop/Inf</th>
+        </tr>
+      </thead>
+      <tbody id="actorTable"></tbody>
+    </table>
+  </div>
+
+  <script>
+    
+  const MAX_SHOW = 20, MAX_SEL = 3;
+  let data, graph, years, lastYear, topActors, tableActors, selected = [], currentYear;
+Promise.all([
+  d3.csv("/data/actor_data_updated.csv", d => ({
+    actor_id:    +d.actor_id,
+    type:         d.type,
+    name:         d.name,
+    genre:        d.genre,
+    year:        +d.year,
+    pop_score:   +d.pop_score,
+    inf_score:   +d.inf_score,
+    pop_delta:   +d.pop_delta,
+    inf_delta:   +d.inf_delta,
+    total_score: +d.total_score,
+    isPrediction: false
+  })),
+  d3.csv("/data/actor_predictions.csv", d => ({
+    actor_id:    +d.actor_id,
+    name:         d.name,
+    genre:        d.genre,
+    year:        +d.year,               // ya solo año
+    pop_score:   +d.pop_pred,           // usamos el predicho
+    inf_score:   +d.inf_pred,
+    pop_delta:    null,
+    inf_delta:    null,
+    total_score: +d.total_pred,
+    isPrediction: true
+  })),
+  d3.json("/data/MC1_graph.json")
+]).then(([histRows, predRows, graphJson]) => {
+  // 1) concatenamos histórico + predicción
+  data  = histRows.concat(predRows);
+  graph = graphJson;
+
+  // 2) normalizar IDs en el grafo
+  graph.nodes.forEach(n => n.id = +n.id);
+  graph.links.forEach(l => {
+    l.source = +l.source;
+    l.target = +l.target;
+  });
+
+  // 3) calcular años, recordando que lastYear debe ser el último histórico
+  const allYears = Array.from(new Set(histRows.map(d => d.year)));
+  years     = Array.from(new Set(data.map(d => d.year))).sort((a,b) => a - b);
+  lastYear  = d3.max(allYears);
+  currentYear = lastYear;
+
+  // 4) dropdown géneros, topActors, tabla y render inicial
+  const genres = Array.from(new Set(data.map(d => d.genre))).sort();
+  const gd = d3.select("#genreDropdown");
+  gd.append("option").text("Todos");
+  genres.forEach(g => gd.append("option").text(g));
+  gd.on("change", updateTable);
+
+  topActors = d3.rollups(
+    data.filter(d => !d.isPrediction && d.year === lastYear),
+    v => d3.sum(v, d => d.total_score),
+    d => d.actor_id
+  ).sort(([,a],[,b]) => d3.descending(a,b))
+   .slice(0, MAX_SHOW)
+   .map(d => d[0]);
+
+  tableActors = topActors.slice();
+  selected    = topActors.slice(0, MAX_SEL);
+
+  updateTable();
+});
+
+
+function updateTable(){
+  const genre = d3.select("#genreDropdown").property("value");
+  if (genre === "Genero (Todos)") {
+    tableActors = topActors.slice();
+  } else {
+    tableActors = d3.rollups(
+      data.filter(d => d.year === lastYear && d.genre === genre),
+      v => d3.sum(v, d => d.total_score),
+      d => d.actor_id
+    )
+    .sort(([,a],[,b]) => d3.descending(a,b))
+    .map(d => d[0])
+    .slice(0, MAX_SHOW);
+  }
+
+  // No modificamos `selected` aquí: mantenemos exactamente lo que el usuario marcó.
+
+  drawTable();
+  drawTimeline();
+  drawRRG();
+  drawRelationships();
+  drawGraph();
+}
+
+
+function drawTable(){
+  const tbody = d3.select("#actorTable").html("");
+  tableActors.forEach(id => {
+    const meta = data.find(d => d.actor_id===id);
+    const rec  = data.find(d => d.actor_id===id && d.year===currentYear) || {};
+    const tr = tbody.append("tr");
+
+    // checkbox
+    tr.append("td").append("input")
+      .attr("type","checkbox")
+      .property("checked", selected.includes(id))
+    .on("change", function(){
+    if (this.checked) {
+        if (selected.length < MAX_SEL) selected.push(id);
+    } else {
+        selected = selected.filter(x => x !== id);
+    }
+    // << NO dejes aquí ninguna llamada a updateTable() >>
+    drawTimeline();
+    drawRRG();
+    drawRelationships();
+    drawGraph();
+    });
+
+    // resto de columnas
+    tr.append("td").text(id);
+    tr.append("td").text(meta.name);
+    tr.append("td").text(meta.genre);
+    tr.append("td").text(meta.type);
+    tr.append("td").text(rec.pop_delta?.toFixed(1) + "%" || "");
+    tr.append("td").text(rec.inf_delta?.toFixed(1) + "%" || "");
+    tr.append("td").text(rec.total_score?.toFixed(1) || "");
+  });
+}
+
+d3.select("#clearSelectionBtn").on("click", () => {
+  selected = [];        
+  drawTable();
+  drawTimeline();
+  drawRRG();
+  drawRelationships();
+  drawGraph();
+});
+
+function drawTimeline(){
+  const svg = d3.select("#timeChart"),
+        W   = svg.node().clientWidth,
+        H   = svg.node().clientHeight,
+        m   = { t:30, r:20, b:40, l:50 };
+  svg.selectAll("*").remove();
+    if (selected.length === 0) {
+    // opcional: un mensaje en el centro
+    svg.append("text")
+       .attr("x", svg.node().clientWidth/2)
+       .attr("y", svg.node().clientHeight/2)
+       .attr("text-anchor","middle")
+       .attr("fill","#666")
+       .text("Sin artistas seleccionados");
+    return;
+  }
+  const g  = svg.append("g").attr("transform", `translate(${m.l},${m.t})`);
+  const iw = W - m.l - m.r,
+        ih = H - m.t - m.b;
+
+  // escala X sobre todos los años
+  const x = d3.scalePoint().domain(years).range([0, iw]);
+
+  // sombreado de zona de predicción
+  const predYears = years.filter(y => y > lastYear);
+  if (predYears.length) {
+    const xStart = x(predYears[0]) - (iw/(years.length-1))/2;
+    g.append("rect")
+      .attr("x", xStart).attr("y", 0)
+      .attr("width", iw - xStart).attr("height", ih)
+      .attr("fill", "#999").attr("opacity", 0.1);
+  }
+
+  // ejes
+  const maxTot = d3.max(data.filter(d=>selected.includes(d.actor_id)), d=>d.total_score);
+  const y = d3.scaleLinear().domain([0, maxTot]).nice().range([ih, 0]);
+  g.append("g").attr("class","axis")
+    .attr("transform", `translate(0,${ih})`)
+    .call(d3.axisBottom(x)
+      .tickValues(years.filter((_,i)=>i%5===0))
+      .tickSize(-ih).tickPadding(8))
+    .selectAll("text")
+      .attr("transform","rotate(45)").style("text-anchor","start");
+  g.append("g").attr("class","axis")
+    .call(d3.axisLeft(y).ticks(4).tickSize(-iw).tickPadding(8));
+
+  // dibuja UNA SÓLA línea (histórica + predicción) para cada artista
+  selected.forEach((aid,i) => {
+    const serie = data
+      .filter(d => d.actor_id === aid)
+      .sort((a,b) => a.year - b.year);
+
+    const lineGen = d3.line()
+      .x(d => x(d.year))
+      .y(d => y(d.total_score));
+
+    g.append("path")
+      .datum(serie)
+      .attr("class","line")
+      .attr("stroke", d3.schemeCategory10[i])
+      .attr("stroke-width", 2)
+      .attr("fill","none")
+      .attr("d", lineGen);
+  });
+
+  // slider (igual que antes)
+  const idx  = years.indexOf(currentYear),
+        step = iw/(years.length-1),
+        bw   = step*1.2;
+  const drag = d3.drag().on("drag", evt=>{
+    let x0 = Math.max(0, Math.min(iw, evt.x));
+    currentYear = years[Math.round(x0/step)];
+    drawTimeline(); drawRRG(); drawRelationships(); drawGraph();
+  });
+  const slider = g.append("g").call(drag);
+  slider.append("rect").attr("class","slider-block")
+    .attr("x", step*idx - bw/2).attr("y",-5)
+    .attr("width", bw).attr("height", ih+10);
+  slider.append("line").attr("class","slider-line")
+    .attr("x1",step*idx).attr("x2",step*idx)
+    .attr("y1",-5).attr("y2",ih+5);
+  slider.append("text").attr("class","slider-year")
+    .attr("x",step*idx).attr("y",-12)
+    .text(currentYear);
+}
+
+
+
+  function drawRRG(){
+    const svg = d3.select("#rrgChart"),
+          S = +svg.attr("width"), m = 60,
+          W = S-2*m, H = S-2*m;
+    svg.selectAll("*").remove();
+    d3.select("#rrgLegend").html("");
+    if (selected.length === 0) {
+        // opcional: mensaje
+        svg.append("text")
+        .attr("x", +svg.attr("width")/2)
+        .attr("y", +svg.attr("height")/2)
+        .attr("text-anchor","middle")
+        .attr("fill","#666")
+        .text("Sin artistas seleccionados");
+        return;
+    }
+    const g = svg.append("g").attr("transform",`translate(${m},${m})`);
+    const selData = data.filter(d=>selected.includes(d.actor_id)&&d.year<=currentYear);
+    const popExt = d3.extent(selData,d=>d.pop_score),
+          infExt = d3.extent(selData,d=>d.inf_score);
+    const px=(popExt[1]-popExt[0])*0.05, py=(infExt[1]-infExt[0])*0.05;
+    const x=d3.scaleLinear().domain([popExt[0]-px,popExt[1]+px]).range([0,W]);
+    const y=d3.scaleLinear().domain([infExt[0]-py,infExt[1]+py]).range([H,0]);
+    const popMid=(popExt[0]+popExt[1])/2, infMid=(infExt[0]+infExt[1])/2;
+    const x0=x(popMid), y0=y(infMid);
+    // cuadrantes
+    g.append("rect").attr("class","quadrant").attr("x",0).attr("y",0).attr("width",x0).attr("height",y0).attr("fill","#E6B0AA");
+    g.append("rect").attr("class","quadrant").attr("x",x0).attr("y",0).attr("width",W-x0).attr("height",y0).attr("fill","#A9CCE3");
+    g.append("rect").attr("class","quadrant").attr("x",0).attr("y",y0).attr("width",x0).attr("height",H-y0).attr("fill","#A9DFBF");
+    g.append("rect").attr("class","quadrant").attr("x",x0).attr("y",y0).attr("width",W-x0).attr("height",H-y0).attr("fill","#F5CBA7");
+    // ejes
+    g.append("line").attr("class","axis-rrg").attr("x1",x0).attr("y1",0).attr("x2",x0).attr("y2",H);
+    g.append("line").attr("class","axis-rrg").attr("x1",0).attr("y1",y0).attr("x2",W).attr("y2",y0);
+    g.append("g").attr("class","axis-rrg").attr("transform",`translate(0,${H})`)
+      .call(d3.axisBottom(x).ticks(6).tickSize(-H).tickPadding(6));
+    g.append("g").attr("class","axis-rrg")
+      .call(d3.axisLeft(y).ticks(6).tickSize(-W).tickPadding(6));
+    // etiquetas
+    svg.append("text").attr("class","quad-label").attr("x",m+x0/2).attr("y",m-10).text("Low-Pop / Hi-Inf");
+    svg.append("text").attr("class","quad-label").attr("x",m+x0+(W-x0)/2).attr("y",m-10).text("Hi-Pop / Hi-Inf");
+    svg.append("text").attr("class","quad-label").attr("x",m+x0/2).attr("y",m+H+40).text("Low-Pop / Low-Inf");
+    svg.append("text").attr("class","quad-label").attr("x",m+x0+(W-x0)/2).attr("y",m+H+40).text("Hi-Pop / Low-Inf");
+    // trayectorias
+    const lineGen=d3.line().curve(d3.curveCatmullRom.alpha(0.5))
+                     .x(d=>x(d.pop_score)).y(d=>y(d.inf_score));
+    selected.forEach((aid,i)=>{
+      const color=d3.schemeCategory10[i],
+            serie=selData.filter(d=>d.actor_id===aid).sort((a,b)=>a.year-b.year);
+      g.append("path").datum(serie).attr("class","track").attr("stroke",color).attr("d",lineGen);
+      g.selectAll(`.dot-${aid}`).data(serie).join("circle")
+        .attr("class","dot").attr("cx",d=>x(d.pop_score)).attr("cy",d=>y(d.inf_score))
+        .attr("r",4).attr("fill",color)
+        .append("title").text(d=>`${d.name} (${d.year})\nPop: ${d.pop_score.toFixed(1)}\nInf: ${d.inf_score.toFixed(1)}`);
+    });
+    // leyenda
+    const legend=d3.select("#rrgLegend").html("");
+    selected.forEach((aid,i)=>{
+      const meta=data.find(d=>d.actor_id===aid);
+      legend.append("div").attr("class","legend-item")
+        .html(`<span class="legend-color" style="background:${d3.schemeCategory10[i]};"></span>${meta.name}`);
+    });
+  }
+
+// Define tus conjuntos de roles pop vs inf al tope de tu script:
+const OWN_ROLES = new Set(['PerformerOf','ComposerOf','LyricistOf','ProducerOf']);
+const INF_ROLES = new Set(['InStyleOf','DirectlySamples','CoverOf','InterpolatesFrom','LyricalReferenceTo']);
+
+function drawRelationships(){
+  const ul = d3.select("#relList").html("");
+  const nodeById = new Map(graph.nodes.map(n => [+n.id, n]));
+
+  // 1) Cada nodo seleccionado
+  selected.forEach(id => {
+    const n = nodeById.get(id);
+    if (n) {
+      ul.append("li.rel-item")
+        .text(`Nodo: ${n.name || n.stage_name || n.Name} (${n["Node Type"]})`);
+    }
+  });
+
+  // 2) Todos los enlaces que conectan con selected
+  graph.links
+    .filter(e => {
+      const src = typeof e.source === "object" ? +e.source.id : +e.source;
+      const tgt = typeof e.target === "object" ? +e.target.id : +e.target;
+      return selected.includes(src) || selected.includes(tgt);
+    })
+    .forEach(e => {
+      const srcId = typeof e.source === "object" ? +e.source.id : +e.source;
+      const tgtId = typeof e.target === "object" ? +e.target.id : +e.target;
+      const src   = nodeById.get(srcId);
+      const tgt   = nodeById.get(tgtId);
+      const typ   = e["Edge Type"];
+      if (src && tgt) {
+        ul.append("li.rel-item")
+          .text(`→ ${typ}: ${src.name||src.stage_name||src.Name}
+→ ${tgt.name||tgt.stage_name||tgt.Name}`);
+      }
+    });
+}
+
+function drawGraph(){
+  const svgC = d3.select("#graphViz");
+  const W    = svgC.node().clientWidth,
+        H    = svgC.node().clientHeight;
+
+  // 0) Limpia SVG y leyenda
+  svgC.selectAll("*").remove();
+  d3.select("#graphLegend").html("");
+
+  // 1) Prepara zoom/pan
+  const svg = svgC.call(d3.zoom()
+                          .scaleExtent([0.1,10])
+                          .on("zoom", ({transform}) => container.attr("transform", transform)))
+                  .append("g");
+  const container = svg.append("g");
+
+  // 2) Lookup nodos y filtro por año
+  const byId = new Map(graph.nodes.map(n=>[+n.id, n]));
+  function isBefore(id) {
+    const node = byId.get(id),
+          rd   = node && node.release_date;
+    return rd && /^\d{4}$/.test(rd) && +rd <= currentYear;
+  }
+
+  // 3) Pop links (rojo)
+  const popLinks = [];
+  selected.forEach(artistId => {
+    graph.links.forEach(e => {
+      const src = +(typeof e.source==="object" ? e.source.id : e.source),
+            tgt = +(typeof e.target==="object" ? e.target.id : e.target);
+      if ( src === artistId
+        && OWN_ROLES.has(e['Edge Type'])
+        && isBefore(tgt)
+      ) popLinks.push({ source: src, target: tgt });
+    });
+  });
+
+  // 4) Influence links (azul punteado)
+  const infLinks = [],
+        workIds = new Set(popLinks.map(l=>l.target));
+  graph.links.forEach(e => {
+    const src = +(typeof e.source==="object" ? e.source.id : e.source),
+          tgt = +(typeof e.target==="object" ? e.target.id : e.target);
+    if ( workIds.has(src)
+      && INF_ROLES.has(e['Edge Type'])
+      && isBefore(src)
+    ) infLinks.push({ source: src, target: tgt });
+  });
+
+  // 5) Secondary artist links (gris)
+    const secArtistLinks = [];
+    infLinks.forEach(l => {
+    graph.links.forEach(e => {
+        const src = +(typeof e.source==="object" ? e.source.id : e.source),
+            tgt = +(typeof e.target==="object" ? e.target.id : e.target);
+        // ← Solo PerformerOf o ComposerOf
+        if (tgt === l.target
+        && (e['Edge Type'] === 'PerformerOf' || e['Edge Type'] === 'ComposerOf')
+        && isBefore(tgt)
+        ) {
+        secArtistLinks.push({ source: src, target: tgt });
+        }
+    });
+    });
+
+  // 6) Recopila nodos
+  const nodeIds = new Set();
+  selected               .forEach(id=> nodeIds.add(id));
+  popLinks   .forEach(l=>{ nodeIds.add(l.source); nodeIds.add(l.target); });
+  infLinks   .forEach(l=>{ nodeIds.add(l.source); nodeIds.add(l.target); });
+  secArtistLinks.forEach(l=>{ nodeIds.add(l.source); nodeIds.add(l.target); });
+
+  const nodes    = Array.from(nodeIds).map(id=>byId.get(id)).filter(Boolean),
+        allLinks = popLinks.concat(infLinks, secArtistLinks);
+
+  // 7) Simulación con colisión y parada rápida
+  const sim = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(allLinks)
+      .id(d=>d.id).distance(120).strength(0.5))
+    .force("charge", d3.forceManyBody().strength(-10))
+    .force("collide", d3.forceCollide().radius(50))
+    .force("center", d3.forceCenter(W/2,H/2))
+        // **estas dos fuerzas extra**
+    .force("x", d3.forceX(W/2).strength(0.01))
+    .force("y", d3.forceY(H/2).strength(0.01))
+    .alphaDecay(0.1).alphaMin(0.01)
+    .on("end", () => sim.stop());
+
+
+
+  // 8) Dibuja enlaces
+  container.append("g").selectAll("line.pop")
+    .data(popLinks).enter().append("line")
+      .attr("class","pop")
+      .attr("stroke","#d62728").attr("stroke-width",2);
+
+  container.append("g").selectAll("line.inf")
+    .data(infLinks).enter().append("line")
+      .attr("class","inf")
+      .attr("stroke","#1f77b4")
+      .attr("stroke-dasharray","4 2")
+      .attr("stroke-width",1.5);
+
+  container.append("g").selectAll("line.sec")
+    .data(secArtistLinks).enter().append("line")
+      .attr("class","sec")
+      .attr("stroke","#888").attr("stroke-width",1);
+
+  // 9) Dibuja nodos
+  container.append("g").selectAll("circle")
+    .data(nodes).enter().append("circle")
+    .attr("r", d => selected.includes(d.id) ? 12 : 8)   // nodos seleccionados más grandes
+      .attr("fill", d => {
+        const idx = selected.indexOf(d.id);
+        if (idx !== -1) return d3.schemeCategory10[idx];   // artista seleccionado
+        if (d["Node Type"] === "Song")   return "#AF7AC5"; // canción
+        if (d["Node Type"] === "Album")  return "#641E16"; // álbum
+        return "#BDC3C7";                  // secundarios
+      })
+      .call(d3.drag()
+        .on("start",(e,d)=>{ if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+        .on("drag",(e,d)=>{ d.fx=e.x; d.fy=e.y; })
+        .on("end",(e,d)=>{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  // 10) Etiquetas
+  container.append("g").selectAll("text")
+    .data(nodes).enter().append("text")
+      .attr("font-size","10px")
+      .attr("dx",12).attr("dy","0.35em")
+      .text(d=> d.name || d.stage_name || d.Name);
+
+  // 11) Tick
+  sim.on("tick", ()=>{
+    container.selectAll("line.pop")
+      .attr("x1",d=>d.source.x).attr("y1",d=>d.source.y)
+      .attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);
+    container.selectAll("line.inf")
+      .attr("x1",d=>d.source.x).attr("y1",d=>d.source.y)
+      .attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);
+    container.selectAll("line.sec")
+      .attr("x1",d=>d.source.x).attr("y1",d=>d.source.y)
+      .attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);
+    container.selectAll("circle")
+      .attr("cx",d=>d.x).attr("cy",d=>d.y);
+    container.selectAll("text")
+      .attr("x",d=>d.x).attr("y",d=>d.y);
+  });
+
+  // 12) LEYENDA (en #graphLegend)
+  const lg = d3.select("#graphLegend").html("");
+  lg.append("div").html(`<span style="display:inline-block;width:12px;height:12px;background:#AF7AC5;margin-right:6px;border-radius:3px;"></span>Canciones`);
+  lg.append("div").html(`<span style="display:inline-block;width:12px;height:12px;background:#641E16;margin-right:6px;border-radius:3px;"></span>Albumes`);
+  lg.append("div").html(`<span style="display:inline-block;width:12px;height:12px;background:#BDC3C7;margin-right:6px;border-radius:3px;"></span>Artistas influenciados`);
+  lg.append("div").html(`<span style="display:inline-block;width:20px;height:2px;background:#d62728;margin-right:6px;"></span>Popularidad (Canciones/Álbumes lanzados)`);
+
+lg.append("div").html(`
+  <span
+    style="
+      display:inline-block;
+      width:20px;
+      height:0;
+      border-top:2px dashed #1f77b4;
+      margin-right:6px;
+    "
+  ></span>
+  Influencia a canciones/álbumes
+`);
+  lg.append("div").html(`<span style="display:inline-block;width:20px;height:2px;background:#888;margin-right:6px;"></span>Influencia a artistas`);
+}
+  </script>
+</body>
+</html>
