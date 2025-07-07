@@ -328,7 +328,7 @@
   const MAX_SHOW = 20, MAX_SEL = 3;
   let data, graph, years, lastYear, topActors, tableActors, selected = [], currentYear;
 Promise.all([
-  d3.csv("actor_data_updated.csv", d => ({
+  d3.csv("/data/actor_data_updated.csv", d => ({
     actor_id:    +d.actor_id,
     type:         d.type,
     name:         d.name,
@@ -341,7 +341,7 @@ Promise.all([
     total_score: +d.total_score,
     isPrediction: false
   })),
-  d3.csv("actor_predictions.csv", d => ({
+  d3.csv("/data/actor_predictions.csv", d => ({
     actor_id:    +d.actor_id,
     name:         d.name,
     genre:        d.genre,
@@ -353,7 +353,7 @@ Promise.all([
     total_score: +d.total_pred,
     isPrediction: true
   })),
-  d3.json("MC1_graph.json")
+  d3.json("/data/MC1_graph.json")
 ]).then(([histRows, predRows, graphJson]) => {
   // 1) concatenamos histórico + predicción
   data  = histRows.concat(predRows);
