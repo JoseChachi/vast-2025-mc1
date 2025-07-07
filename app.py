@@ -6,19 +6,19 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return render_template('graph.html')
-
-@app.route('/xd2/')
-def index2():
-    return render_template('otherlanding.html')
-
-@app.route('/p1/1')
-def index3():
     return render_template('otherlanding2.html')
 
-@app.route('/p1/2')
-def index4():
-    return render_template('otherrlanding2.html')
+# @app.route('/xd2/')
+# def index2():
+#     return render_template('otherlanding.html')
+
+# @app.route('/p1/1')
+# def index3():
+#     return render_template('otherlanding2.html')
+
+# @app.route('/p1/2')
+# def index4():
+    # return render_template('otherrlanding2.html')
 
 @app.route('/data/<path:filename>')
 def data(filename):
@@ -39,6 +39,14 @@ def get_music_data():
             "error": "Archivo no encontrado",
             "message": "No se pudo encontrar el archivo data/MC1_graph.json"
         }), 404
+
+@app.route('/algo1')
+def algo1():
+    return render_template('otherlanding.html')
+
+@app.route('/algo2') 
+def algo2():
+    return render_template('otherrlanding2.html')
 
 
 if __name__ == '__main__':
