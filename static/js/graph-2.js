@@ -201,7 +201,7 @@ d3.json(`/data/${FILE}`).then(data => {
             legendBox.style("display", null);  // ← activa leyenda
 
             if (!boxUpdater) {
-                boxUpdater = drawBoxChart(); // genera gráfico y leyenda
+                boxUpdater = drawInspirationChart();
                 bPrev.on("click", () => step(-1));
                 bNext.on("click", () => step(+1));
                 bPlay.on("click", togglePlay);
@@ -230,8 +230,6 @@ d3.json(`/data/${FILE}`).then(data => {
             width  = +svg.attr("width"),
             height = +svg.attr("height"),
 
-            /* margen inferior y lateral algo mayores
-                para que quepan los títulos de los ejes */
             m = {top:20, right:20, bottom:50, left:60},
             w = width  - m.left - m.right,
             h = height - m.top  - m.bottom;
@@ -251,16 +249,30 @@ d3.json(`/data/${FILE}`).then(data => {
             .curve(d3.curveMonotoneX);
 
         /* ---------- lienzo ---------- */
-        svg.selectAll("*").remove();                      // limpia si se redibuja
+        svg.selectAll("*").remove();
         const g = svg.append("g")
             .attr("transform", `translate(${m.left},${m.top})`);
 
-        g.append("path")
-            .datum(data)
-            .attr("fill", "#69b3a2")
-            .attr("d", area);
+        /* ----- grillas de fondo (suaves) ----- */
+        const xGrid = d3.axisBottom(x).ticks(6).tickSize(-h).tickFormat("");
+        const yGrid = d3.axisLeft(y).ticks(5).tickSize(-w).tickFormat("");
 
-        /* ---------- ejes ---------- */
+        g.append("g")
+        .attr("class", "grid")
+        .attr("transform", `translate(0,${h})`)
+        .call(xGrid);
+
+        g.append("g")
+        .attr("class", "grid")
+        .call(yGrid);
+
+        /* curva de área */
+        g.append("path")
+        .datum(data)
+        .attr("fill", "#69b3a2")
+        .attr("d", area);
+
+        /* ejes */
         const xAxis = g.append("g")
             .attr("transform", `translate(0,${h})`)
             .call(d3.axisBottom(x).tickFormat(d3.format("d")));
@@ -268,25 +280,57 @@ d3.json(`/data/${FILE}`).then(data => {
         const yAxis = g.append("g")
             .call(d3.axisLeft(y));
 
-        /* ---------- títulos de los ejes ---------- */
+        /* títulos de ejes */
         xAxis.append("text")
-            .attr("x", w / 2)
-            .attr("y", 40)
-            .attr("fill", "#000")
-            .attr("font-weight", "bold")
-            .attr("text-anchor", "middle")
-            .attr("font-size", "14px")
-            .text("Años");
+            .attr("x", w/2).attr("y", 40)
+            .attr("fill","#000").attr("font-weight","bold")
+            .attr("text-anchor","middle").text("Años");
 
         yAxis.append("text")
-            .attr("transform", "rotate(-90)")
-            .attr("x", -h / 2)
-            .attr("y", -m.left + 20)
-            .attr("fill", "#000")
-            .attr("font-weight", "bold")
-            .attr("text-anchor", "middle")
-            .attr("font-size", "14px")
+            .attr("transform","rotate(-90)")
+            .attr("x", -h/2).attr("y", -m.left+20)
+            .attr("fill","#000").attr("font-weight","bold")
+            .attr("text-anchor","middle")
             .text("N° de canciones influenciadas");
+
+        /* ---------- tooltip interactivo ---------- */
+        const bisect = d3.bisector(d => d.year).left;      // búsqueda binaria
+
+        const focus = g.append("circle")                   // marcador
+            .attr("r", 4.5)
+            .attr("fill", "#000")
+            .style("display", "none");
+
+        const overlay = g.append("rect")                   // capa capturadora
+            .attr("width",  w)
+            .attr("height", h)
+            .attr("fill",   "none")
+            .attr("pointer-events","all")
+            .on("mousemove", moved)
+            .on("mouseout",  () => {
+                focus.style("display","none");
+                d3.select("#tooltip").style("opacity",0);
+            });
+
+        function moved(event){
+            const [mx] = d3.pointer(event);
+            const year  = Math.round(x.invert(mx));        // año más cercano
+            const idx   = bisect(data, year);
+            const d0    = data[idx-1] || data[0];
+            const d1    = data[idx]   || data[data.length-1];
+            const d     = (year - d0.year) < (d1.year - year) ? d0 : d1; // punto más próximo
+
+            focus.attr("cx", x(d.year))
+                .attr("cy", y(d.count))
+                .style("display", null);
+
+            const page = d3.pointer(event, document.body); // coordenadas absolutas
+            d3.select("#tooltip")
+            .style("opacity", 1)
+            .style("left",  (page[0] + 15) + "px")
+            .style("top",   (page[1] + 15) + "px")
+            .html(`<strong>${d.year}</strong><br>${d.count} canciones`);
+        }
     }
 
     /* =========================================================
@@ -441,164 +485,152 @@ d3.json(`/data/${FILE}`).then(data => {
         });
     }
 
-    function drawBoxChart(){
-        /* ---- parámetros visuales ---- */
-        const boxW = 520,
-                col  = 13,
-                r0   = 6,
-                padX = 10, padY = 10;
+    function drawInspirationChart () {
+        /* ---- dimensiones y fuerzas ---- */
+        const bandH = 28;            // alto de cada franja
+        const r0    = 6;             // radio del nodo
+        const yearFirst = 2024, yearLast = 2040;
+        yearMin = yearFirst;
+        yearMax = yearLast;
 
-        /* ---- datos pos-Sailor ---- */
-        const ofRecent = nodes.filter(d =>
-                            d.genre === "Oceanus Folk" && getYear(d) >= SAILOR_YEAR);
-
+        /* ---- datos Oceanus Folk post-Sailor ---- */
+        const ofRecent = nodes.filter(
+            d => d.genre === "Oceanus Folk" && getYear(d) >= yearFirst
+        );
         const byYear = d3.group(ofRecent, d => getYear(d));
-        const years  = Array.from(byYear.keys()).sort(d3.ascending);
-        console.log("Años post-Sailor:", years);   // ←
-        yearMin = years[0]; 
-        yearMax = years.at(-1);
+        const years  = d3.range(yearFirst, yearLast + 1);
 
-        /* ---- paleta de géneros externos ---- */
+        /* ---- géneros externos dominantes ---- */
         genres = Array.from(
-                new Set(condensed.map(l=>byId.get(l.source)?.genre).filter(Boolean))
-            ).concat("Sin influencia");
+            new Set(condensed.map(l => byId.get(l.source)?.genre).filter(Boolean))
+        ).concat("Sin influencia");
 
         color = d3.scaleOrdinal()
                 .domain(genres)
                 .range(d3.schemeTableau10.concat(d3.schemePaired)
                     .slice(0, genres.length));
 
-        /* ---- lienzo ---- */
-        const svg = d3.select("#boxChart"),
-                W = +svg.attr("width"),
-                H = +svg.attr("height"),
-                m = {top:50,right:200,bottom:60,left:60},
-                w = W-m.left-m.right,
-                h = H-m.top-m.bottom;
-
-        svg.selectAll("*").remove();
-        const g = svg.append("g").attr("transform",`translate(${m.left},${m.top})`);
-
-        /* ---- caja gris ---- */
-        const boxG = g.append("g")
-                .attr("transform",`translate(${(w-boxW)/2},${h})`);
-
-        const rect = boxG.append("rect")
-                .attr("width",boxW).attr("y",-1).attr("height",1)
-                .attr("fill","#ececec").attr("stroke","#666");
-
-        /* ---- leyenda ---- */
         buildBoxLegend(genres, color);
 
-        /* ---- indicador ---- */
-        const info = svg.append("text")
-                .attr("x",m.left).attr("y",20)
-                .attr("font-family","sans-serif")
-                .attr("font-size","14px")
-                .attr("font-weight","bold");
+        /* ---- canvas y escalas ---- */
+        const m = { top: 40, right: 20, bottom: 50, left: 120 };
+        const h = genres.length * bandH;
+        const svg = d3.select("#boxChart")
+                        .attr("height", h + m.top + m.bottom);
 
-        /* ---- data-join de bolas ---- */
-        const circles = boxG.selectAll("circle");
+        const W = +svg.attr("width"),
+                H = +svg.attr("height"),
+                w = W - m.left - m.right;
 
-        /* ▸ simulación con fuerza de colisión */
-        const sim = d3.forceSimulation()
-                    .velocityDecay(0.4)       // un poco de fricción
-                    .alphaDecay(0.05)         // se calma rápido
-                    .force("collide", d3.forceCollide(r0+1.5));
+        svg.selectAll("*").remove();
+        const g = svg.append("g")
+                    .attr("transform", `translate(${m.left},${m.top})`);
 
-        const slider = d3.select("#yearBoxSlider")
-            .attr("min",   yearMin)
-            .attr("max",   yearMax)
-            .attr("step",  1)
-            .property("value", yearMin)          // ← usa property, no attr
-            .on("input", function () {
-                update(+this.value);             // se refresca al mover la manija
-        });
+        const x = d3.scaleLinear().domain([yearFirst, yearLast]).range([0, w]);
+        const y = d3.scaleBand().domain(genres).range([0, h]).padding(0.5);
 
-        slider.on("input", function () {
-            update(+this.value);        // this.value siempre es un número válido
-        });
+        /* ---- ejes ---- */
+        g.append("g")
+        .attr("transform", `translate(0,${h})`)
+        .call(d3.axisBottom(x).tickFormat(d3.format("d")));
 
-        /* ---- función de actualización ---- */
-        function update(year){
+        g.append("g").call(d3.axisLeft(y));
 
-            slider.property("value", year);
+        g.append("text")
+        .attr("x", w / 2).attr("y", h + 40)
+        .attr("text-anchor", "middle").attr("font-weight", "bold")
+        .text("Años");
 
-            /* canciones acumuladas ≤ año */
-            const songs = years.filter(y=>y<=year)
-                            .flatMap(y=>byYear.get(y)||[])
-                            .sort((a,b)=> String(a.id).localeCompare(String(b.id)));
+        g.append("text")
+        .attr("x", -h / 2).attr("y", -90)
+        .attr("transform", "rotate(-90)")
+        .attr("text-anchor", "middle").attr("font-weight", "bold")
+        .text("Género inspiración dominante");
 
-            /* contador */
-            const totalInfl = songs.reduce((acc,s)=>
-                acc + (influencesByTarget.get(s.id)||[]).length, 0);
-            info.text(`Año ${year}: ${songs.length} canciones · ${totalInfl} influencias externas`);
+        /* ---- línea guía del año ---- */
+        const yearLine = g.append("line")
+                            .attr("y1", 0).attr("y2", h)
+                            .attr("stroke", "#000")
+                            .attr("stroke-width", 1.2)
+                            .attr("stroke-dasharray", "4 4");
 
-            /* tamaño de caja */
-            const rows = Math.ceil(songs.length/col);
-            const boxH = rows ? rows*(r0*2+4)+padY*2 : 0;
-            rect.attr("y",-boxH).attr("height",boxH);
+        const yearLabel = g.append("text")
+                            .attr("y", -12)
+                            .attr("fill", "#000")
+                            .attr("font-size", "16px")
+                            .attr("font-weight", "bold")
+                            .attr("text-anchor", "middle");
 
-            /* ----------- JOIN con física ----------- */
-            const sel = boxG.selectAll("circle")
-                            .data(songs, d => d.id);
+        /* ---- contenedor de nodos ---- */
+        const nodeG = g.append("g");
 
-            /* EXIT – quita canciones que desaparecen al retroceder */
-            sel.exit().remove();
+        /* ---- slider y botones ---- */
+        slider.attr("min", yearFirst).attr("max", yearLast)
+                .attr("step", 1).property("value", yearFirst)
+                .on("input", function () { update(+this.value); });
 
-            /* ENTER – nuevas pelotas */
-            const enter = sel.enter().append("circle")
-                .attr("r", r0)
-                .attr("fill", d => {
-                    const inf  = influencesByTarget.get(d.id) || [];
-                    const gExt = inf.length ? (byId.get(inf[0].source)?.genre || "Otro")
-                                            : "Sin influencia";
-                    return color(gExt);
-                })
-                .attr("stroke","#fff").attr("stroke-width",1)
-                .each(d => {             // posición inicial al azar dentro de la caja
-                    d.x = Math.random()*boxW;
-                    d.y = -Math.random()*boxH;
-                })
-                /* tooltip */
-                .on("mouseover", (e,d)=>{
-                    const inf = influencesByTarget.get(d.id)||[];
-                    const gExt = inf.length ? (byId.get(inf[0].source)?.genre || "Otro")
-                                            : "Sin influencia";
-                    d3.select("#tooltip").style("opacity",1)
-                        .html(`<b>${d.name}</b><br>${d.release_date}<br>
-                            Infl.: ${inf.length}<br>${gExt}`);
-                })
-                .on("mousemove", e=>{
-                    d3.select("#tooltip")
-                    .style("left",(e.pageX+12)+"px")
-                    .style("top" ,(e.pageY+12)+"px");
-                })
-                .on("mouseout", ()=> d3.select("#tooltip").style("opacity",0));
+        bPrev.on("click", () => step(-1));
+        bNext.on("click", () => step(+1));
+        bPlay.on("click", togglePlay);
 
-            /* (re)arranca la simulación con las canciones visibles */
-            sim.nodes(songs)
-            .force("center", d3.forceCenter(boxW/2, -boxH/2))
-            .alpha(0.7).restart();
-
-            /* (re)arranca la simulación con las canciones visibles */
-            sim.nodes(songs)
-                .force("center", d3.forceCenter(boxW/2, -boxH/2))
-                .alpha(0.7)
-                .restart();
-
-            /* tick: dibuja cada paso y mantiene las pelotas dentro de la caja */
-            sim.on("tick", () => {
-                boxG.selectAll("circle")
-                    .attr("cx", d => d.x = Math.max(padX + r0,        Math.min(boxW - padX - r0, d.x)))
-                    .attr("cy", d => d.y = Math.max(-boxH + padY + r0, Math.min(-padY - r0,       d.y)));
-            });
+        function step(dir) {
+            let yv = +slider.property("value") + dir;
+            yv = Math.max(yearFirst, Math.min(yearLast, yv));
+            slider.property("value", yv);
+            update(yv);
         }
 
-        /* --- estado inicial con 2024 --- */
-        slider.node().value = yearMin;
-        update(yearMin);
+        /* ---- fuerza ---- */
+        const sim = d3.forceSimulation()
+                        .velocityDecay(0.3)
+                        .force("x", d3.forceX(d => x(getYear(d))).strength(0.8))
+                        .force("y", d3.forceY(d => y(getDominant(d))).strength(0.8))
+                        .force("collide", d3.forceCollide(r0 + 1.5))
+                        .on("tick", () => {
+                        nodeG.selectAll("circle")
+                            .attr("cx", d => d.x)
+                            .attr("cy", d => d.y);
+                        });
 
+        function getDominant(song) {
+            const inf = influencesByTarget.get(song.id) || [];
+            return inf.length ? (byId.get(inf[0].source)?.genre || "Otro")
+                            : "Sin influencia";
+        }
+
+        /* ---- actualización ---- */
+        function update(year) {
+            slider.property("value", year);
+
+            const songs = years.filter(y => y <= year)
+                            .flatMap(y => byYear.get(y) || []);
+
+            const sel = nodeG.selectAll("circle").data(songs, d => d.id);
+            sel.exit().remove();
+
+            sel.enter().append("circle")
+            .attr("r", r0)
+            .attr("fill", d => color(getDominant(d)))
+            .attr("stroke", "#fff").attr("stroke-width", 1)
+            .on("mouseover", (e, d) => {
+                const dom = getDominant(d);
+                d3.select("#tooltip").style("opacity", 1)
+                .html(`<strong>${d.name}</strong><br>${d.release_date}<br>${dom}`);
+            })
+            .on("mousemove", e => {
+                d3.select("#tooltip")
+                .style("left", (e.pageX + 12) + "px")
+                .style("top",  (e.pageY + 12) + "px");
+            })
+            .on("mouseout", () => d3.select("#tooltip").style("opacity", 0));
+
+            yearLine.attr("x1", x(year)).attr("x2", x(year));
+            yearLabel.attr("x", x(year)).text(year);
+
+            sim.nodes(songs).alpha(0.7).restart();
+        }
+
+        update(yearFirst);
         return update;
     }
 });
