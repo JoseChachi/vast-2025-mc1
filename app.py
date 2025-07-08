@@ -33,6 +33,14 @@ def get_music_data():
             "message": "No se pudo encontrar el archivo data/MC1_graph.json"
         }), 404
 
+@app.route('/algo1')
+def algo1():
+    return render_template('otherlanding.html')
+
+@app.route('/p3') 
+def p3():
+    return render_template('index_3.html')
+
 
 if __name__ == '__main__':
     app.run(debug=True)

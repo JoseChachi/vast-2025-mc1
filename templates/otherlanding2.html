@@ -1,16 +1,51 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grafo Tripartito con Panel de Información</title>
+    <title>FolkFlow</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 20px;
             background-color: #f8f9fa;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            margin: 0;
+            color: #495057;
+        }
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .nav-button {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        .nav-button:hover {
+            background: linear-gradient(135deg, #20c997, #17a2b8);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            text-decoration: none;
+            color: white;
         }
         .container {
             display: flex;
@@ -237,10 +272,25 @@
         .suggestion-item:last-child {
             border-bottom: none;
         }
+        .timeline-info {
+            background: #e8f4f8;
+            border: 1px solid #17a2b8;
+            border-radius: 4px;
+            padding: 8px;
+            margin: 5px 0;
+            font-size: 12px;
+            color: #0c5460;
+        }
     </style>
 </head>
 <body>
-    <h1>Grafo Tripartito con Panel de Información</h1>
+    <div class="header">
+        <h1>FolkFlow</h1>
+        <div class="nav-buttons">
+            <a href="{{ url_for('algo1') }}" class="nav-button">algo1</a>
+            <a href="{{ url_for('p3') }}" class="nav-button">p3</a>
+        </div>
+    </div>
     
     <div id="controls">
         <div style="position: relative; display: inline-block;">
@@ -249,7 +299,11 @@
         </div>
         <button onclick="loadTargetNode()">Load Network</button>
         <button onclick="clearGraph()">Clear Graph</button>
+        <button onclick="setViewMode('all')" id="viewAllBtn" style="background: linear-gradient(135deg, #6f42c1, #5a32a3);">All Nodes</button>
+        <button onclick="setViewMode('timeline')" id="viewTimelineBtn" style="background: linear-gradient(135deg, #17a2b8, #138496);">Timeline View</button>
         <p id="currentTarget">Busca un nodo para cargar la red</p>
+        <p id="currentView" style="margin: 5px 0; font-size: 14px; color: #6c757d;">Vista actual: Todos los nodos</p>
+        <div id="timelineInfo" class="timeline-info" style="display: none;"></div>
     </div>
     
     <div class="container">
@@ -296,25 +350,26 @@
 
         // Define zones with more space for timelines
         const zones = {
-            source: { y: height * 0.15, height: height * 0.25 },
-            center: { y: height * 0.45, height: height * 0.2 },
-            target: { y: height * 0.7, height: height * 0.2 }
+            source: { y: height * 0.05, height: height * 0.35 },
+            center: { y: height * 0.45, height: height * 0.15 },
+            target: { y: height * 0.65, height: height * 0.3 }
         };
 
-        // Timeline configuration
-        const timelineConfig = {
+        // Timeline configuration - will be updated dynamically
+        let timelineConfig = {
             startYear: 1980,
-            endYear: 2000,
-            topY: zones.source.y - 40,
-            bottomY: zones.target.y + zones.target.height + 20,
-            leftX: 100,
-            rightX: width - 100
+            endYear: 2040,
+            topY: zones.source.y - 30,
+            bottomY: zones.target.y + zones.target.height + 15,
+            leftX: 120,
+            rightX: width - 120
         };
 
         // Target node ID
         let TARGET_NODE_ID = -1;
         let TARGET_NODE_NAME = '';
         let originalData = null;
+        let currentViewMode = 'all'; // 'all' or 'timeline'
 
         // Global variables
         let allNodes = [];
@@ -369,13 +424,200 @@
             searchSuggestions.style.display = 'none';
         }
 
+        // Function to parse release date
+        function parseReleaseDate(dateStr) {
+            if (!dateStr) return null;
+            
+            // Try different date formats
+            const formats = [
+                /^(\d{4})$/,                    // YYYY
+                /^(\d{4})-(\d{1,2})$/,         // YYYY-M or YYYY-MM
+                /^(\d{4})-(\d{1,2})-(\d{1,2})$/ // YYYY-M-D or YYYY-MM-DD
+            ];
+            
+            for (let format of formats) {
+                const match = dateStr.match(format);
+                if (match) {
+                    const year = parseInt(match[1]);
+                    const month = match[2] ? parseInt(match[2]) : 1;
+                    const day = match[3] ? parseInt(match[3]) : 1;
+                    return new Date(year, month - 1, day);
+                }
+            }
+            
+            // Fallback: try to parse as regular date
+            const date = new Date(dateStr);
+            return isNaN(date.getTime()) ? null : date;
+        }
+
+        // Function to calculate dynamic timeline range
+        function calculateTimelineRange(connectedNodes) {
+            const validDates = [];
+            
+            connectedNodes.forEach(node => {
+                const nodeType = node["Node Type"];
+                if ((nodeType === 'Song' || nodeType === 'Album') && node.release_date) {
+                    const date = parseReleaseDate(node.release_date);
+                    if (date) {
+                        validDates.push(date.getFullYear());
+                    }
+                }
+            });
+
+            if (validDates.length === 0) {
+                // No valid dates found, use default range
+                return { startYear: 1980, endYear: 2040 };
+            }
+
+            const minYear = Math.min(...validDates);
+            const maxYear = Math.max(...validDates);
+            
+            // Add some padding to the range
+            const padding = Math.max(2, Math.floor((maxYear - minYear) * 0.1));
+            const startYear = Math.max(1950, minYear - padding);
+            const endYear = Math.min(2050, maxYear + padding);
+            
+            return { startYear, endYear };
+        }
+
+        // Function to sort nodes by release date
+        function sortNodesByReleaseDate(nodes) {
+            return nodes.sort((a, b) => {
+                const aDate = parseReleaseDate(a.release_date);
+                const bDate = parseReleaseDate(b.release_date);
+                
+                // Nodes without dates go to the end
+                if (!aDate && !bDate) return 0;
+                if (!aDate) return 1;
+                if (!bDate) return -1;
+                
+                return aDate - bDate;
+            });
+        }
+
+        // Function to position nodes - different logic for each view mode
+        function positionNodes(categorized, timeScale) {
+            if (currentViewMode === 'timeline') {
+                // Timeline positioning for Album/Song nodes
+                positionNodesOnTimeline(categorized.sourceNodes, zones.source, timeScale);
+                positionNodesOnTimeline(categorized.targetNodes, zones.target, timeScale);
+            } else {
+                // Regular positioning for all nodes
+                categorized.sourceNodes.forEach((node, i) => {
+                    const spacing = (width - 200) / (categorized.sourceNodes.length + 1);
+                    node.x = 100 + spacing * (i + 1) + (Math.random() - 0.5) * 50;
+                    node.y = zones.source.y + zones.source.height / 2 + (Math.random() - 0.5) * 40;
+                    node.timelineX = node.x;
+                    node.timelineY = node.y;
+                });
+
+                categorized.targetNodes.forEach((node, i) => {
+                    const spacing = (width - 200) / (categorized.targetNodes.length + 1);
+                    node.x = 100 + spacing * (i + 1) + (Math.random() - 0.5) * 50;
+                    node.y = zones.target.y + zones.target.height / 2 + (Math.random() - 0.5) * 40;
+                    node.timelineX = node.x;
+                    node.timelineY = node.y;
+                });
+            }
+
+            // Center node always in the same position
+            if (categorized.centerNode) {
+                categorized.centerNode.level = 'center';
+                categorized.centerNode.x = width / 2;
+                categorized.centerNode.y = zones.center.y + zones.center.height / 2;
+            }
+        }
+
+        // Function to position nodes on timeline with better collision handling
+        function positionNodesOnTimeline(nodes, zone, timeScale) {
+            // Separate nodes with and without dates
+            const nodesWithDates = nodes.filter(node => {
+                const nodeType = node["Node Type"];
+                return (nodeType === 'Song' || nodeType === 'Album') && node.release_date;
+            });
+            
+            const nodesWithoutDates = nodes.filter(node => {
+                const nodeType = node["Node Type"];
+                return !((nodeType === 'Song' || nodeType === 'Album') && node.release_date);
+            });
+
+            // Sort nodes with dates
+            const sortedNodesWithDates = sortNodesByReleaseDate(nodesWithDates);
+
+            // Group nodes by year for better positioning
+            const nodesByYear = {};
+            sortedNodesWithDates.forEach(node => {
+                const date = parseReleaseDate(node.release_date);
+                if (date) {
+                    const year = date.getFullYear();
+                    const clampedYear = Math.max(timelineConfig.startYear, Math.min(timelineConfig.endYear, year));
+                    if (!nodesByYear[clampedYear]) {
+                        nodesByYear[clampedYear] = [];
+                    }
+                    nodesByYear[clampedYear].push(node);
+                }
+            });
+
+            // Position nodes with dates, grouped by year
+            Object.entries(nodesByYear).forEach(([year, yearNodes]) => {
+                const yearInt = parseInt(year);
+                const xPosition = timeScale(yearInt);
+                
+                // Create vertical layers for nodes in the same year
+                const layerHeight = zone.height * 0.8; // Use 80% of zone height
+                const nodeSpacing = Math.min(40, layerHeight / (yearNodes.length + 1)); // Minimum 40px spacing
+                
+                yearNodes.forEach((node, i) => {
+                    node.x = xPosition + (Math.random() - 0.5) * 20; // Small random offset to avoid perfect overlap
+                    
+                    // Distribute vertically within the zone
+                    if (yearNodes.length === 1) {
+                        node.y = zone.y + zone.height / 2;
+                    } else {
+                        const startY = zone.y + (zone.height - layerHeight) / 2;
+                        node.y = startY + (layerHeight / (yearNodes.length + 1)) * (i + 1);
+                    }
+                    
+                    // Store original timeline position for force attraction
+                    node.timelineX = xPosition;
+                    node.timelineY = node.y;
+                });
+            });
+
+            // Position nodes without dates or non-Song/Album nodes in remaining space
+            const usedYears = Object.keys(nodesByYear).map(y => parseInt(y));
+            const availableXRanges = [];
+            
+            // Find gaps in the timeline for non-dated nodes
+            for (let year = timelineConfig.startYear; year <= timelineConfig.endYear; year += 2) {
+                if (!usedYears.includes(year)) {
+                    availableXRanges.push(timeScale(year));
+                }
+            }
+            
+            // If no gaps, distribute at the edges
+            if (availableXRanges.length === 0) {
+                availableXRanges.push(timelineConfig.leftX + 50, timelineConfig.rightX - 50);
+            }
+            
+            nodesWithoutDates.forEach((node, i) => {
+                const xIndex = i % availableXRanges.length;
+                node.x = availableXRanges[xIndex] + (Math.random() - 0.5) * 60;
+                node.y = zone.y + zone.height / 2 + (Math.random() - 0.5) * (zone.height * 0.4);
+                
+                // Store timeline position
+                node.timelineX = node.x;
+                node.timelineY = node.y;
+            });
+        }
+
         // Function to create timelines
         function createTimelines() {
             const timeScale = d3.scaleLinear()
                 .domain([timelineConfig.startYear, timelineConfig.endYear])
                 .range([timelineConfig.leftX, timelineConfig.rightX]);
 
-            // Top timeline
+            // Top timeline (for sources)
             g.append("line")
                 .attr("class", "timeline")
                 .attr("x1", timelineConfig.leftX)
@@ -383,7 +625,7 @@
                 .attr("x2", timelineConfig.rightX)
                 .attr("y2", timelineConfig.topY);
 
-            // Bottom timeline
+            // Bottom timeline (for targets)
             g.append("line")
                 .attr("class", "timeline")
                 .attr("x1", timelineConfig.leftX)
@@ -391,8 +633,16 @@
                 .attr("x2", timelineConfig.rightX)
                 .attr("y2", timelineConfig.bottomY);
 
+            // Calculate appropriate year intervals based on range
+            const yearRange = timelineConfig.endYear - timelineConfig.startYear;
+            let yearInterval;
+            if (yearRange <= 10) yearInterval = 1;
+            else if (yearRange <= 20) yearInterval = 2;
+            else if (yearRange <= 40) yearInterval = 5;
+            else yearInterval = 10;
+
             // Add year marks and labels
-            const years = d3.range(timelineConfig.startYear, timelineConfig.endYear + 1, 5);
+            const years = d3.range(timelineConfig.startYear, timelineConfig.endYear + 1, yearInterval);
             
             years.forEach(year => {
                 const x = timeScale(year);
@@ -427,6 +677,8 @@
                     .attr("y", timelineConfig.bottomY + 20)
                     .text(year);
             });
+
+            return timeScale;
         }
 
         // Function to clear the current graph
@@ -438,6 +690,7 @@
             
             g.selectAll("*").remove();
             document.getElementById('results').innerHTML = '';
+            document.getElementById('timelineInfo').style.display = 'none';
             updateInfoPanel(null);
         }
 
@@ -473,7 +726,7 @@
             createVisualization(originalData);
         }
 
-        // Function to get connected subgraph
+        // Function to get connected subgraph - IMPROVED to ensure all nodes are connected
         function getConnectedSubgraph(data, targetNodeId) {
             const connectedLinks = data.links.filter(link => 
                 link.source === targetNodeId || link.target === targetNodeId
@@ -496,23 +749,83 @@
             };
         }
 
-        // Function to categorize nodes
+        // Function to set view mode
+        function setViewMode(mode) {
+            currentViewMode = mode;
+            
+            // Update button styles
+            const allBtn = document.getElementById('viewAllBtn');
+            const timelineBtn = document.getElementById('viewTimelineBtn');
+            const currentViewText = document.getElementById('currentView');
+            
+            if (mode === 'all') {
+                allBtn.style.background = 'linear-gradient(135deg, #6f42c1, #5a32a3)';
+                allBtn.style.opacity = '1';
+                timelineBtn.style.background = 'linear-gradient(135deg, #6c757d, #5a6268)';
+                timelineBtn.style.opacity = '0.6';
+                currentViewText.textContent = 'Vista actual: Todos los nodos';
+            } else {
+                timelineBtn.style.background = 'linear-gradient(135deg, #17a2b8, #138496)';
+                timelineBtn.style.opacity = '1';
+                allBtn.style.background = 'linear-gradient(135deg, #6c757d, #5a6268)';
+                allBtn.style.opacity = '0.6';
+                currentViewText.textContent = 'Vista actual: Timeline (Album/Song) - Sin conexiones';
+            }
+            
+            // Reload visualization if we have data
+            if (originalData && TARGET_NODE_ID !== -1) {
+                clearGraph();
+                createVisualization(originalData);
+            }
+        }
+
+        // Function to categorize nodes with filtering based on view mode - IMPROVED
         function categorizeNodes(subgraph) {
             const sourceNodes = [];
             const targetNodes = [];
             const centerNode = subgraph.nodes.find(n => n.id === subgraph.targetNodeId);
 
+            // Get all connected nodes first, then filter if needed
+            const connectedSourceIds = new Set();
+            const connectedTargetIds = new Set();
+
             subgraph.links.forEach(link => {
                 if (link.source === subgraph.targetNodeId) {
-                    const targetNode = subgraph.nodes.find(n => n.id === link.target);
-                    if (targetNode && !targetNodes.find(n => n.id === targetNode.id)) {
-                        targetNodes.push(targetNode);
-                    }
+                    connectedTargetIds.add(link.target);
                 }
                 if (link.target === subgraph.targetNodeId) {
-                    const sourceNode = subgraph.nodes.find(n => n.id === link.source);
-                    if (sourceNode && !sourceNodes.find(n => n.id === sourceNode.id)) {
+                    connectedSourceIds.add(link.source);
+                }
+            });
+
+            // Add source nodes (nodes pointing TO the center)
+            connectedSourceIds.forEach(nodeId => {
+                const sourceNode = subgraph.nodes.find(n => n.id === nodeId);
+                if (sourceNode) {
+                    // Apply view mode filtering
+                    if (currentViewMode === 'timeline') {
+                        const nodeType = sourceNode["Node Type"];
+                        if (nodeType === 'Song' || nodeType === 'Album') {
+                            sourceNodes.push(sourceNode);
+                        }
+                    } else {
                         sourceNodes.push(sourceNode);
+                    }
+                }
+            });
+
+            // Add target nodes (nodes the center points TO)
+            connectedTargetIds.forEach(nodeId => {
+                const targetNode = subgraph.nodes.find(n => n.id === nodeId);
+                if (targetNode) {
+                    // Apply view mode filtering
+                    if (currentViewMode === 'timeline') {
+                        const nodeType = targetNode["Node Type"];
+                        if (nodeType === 'Song' || nodeType === 'Album') {
+                            targetNodes.push(targetNode);
+                        }
+                    } else {
+                        targetNodes.push(targetNode);
                     }
                 }
             });
@@ -550,13 +863,15 @@
                     nodeTypeStats[nodeType] = (nodeTypeStats[nodeType] || 0) + 1;
                 });
 
-            subgraph.links.forEach(link => {
-                if (link.target === subgraph.targetNodeId) {
-                    connectionTypeStats['Source → Center']++;
-                } else if (link.source === subgraph.targetNodeId) {
-                    connectionTypeStats['Center → Target']++;
-                }
-            });
+            if (currentViewMode !== 'timeline') {
+                subgraph.links.forEach(link => {
+                    if (link.target === subgraph.targetNodeId) {
+                        connectionTypeStats['Source → Center']++;
+                    } else if (link.source === subgraph.targetNodeId) {
+                        connectionTypeStats['Center → Target']++;
+                    }
+                });
+            }
 
             // Build info panel HTML
             let html = `
@@ -568,11 +883,11 @@
                     </div>
                     <div class="stat-item">
                         <span class="stat-label">Total Nodos:</span>
-                        <span class="stat-value">${subgraph.nodes.length}</span>
+                        <span class="stat-value">${categorized.sourceNodes.length + 1 + categorized.targetNodes.length}</span>
                     </div>
                     <div class="stat-item">
                         <span class="stat-label">Total Conexiones:</span>
-                        <span class="stat-value">${subgraph.links.length}</span>
+                        <span class="stat-value">${currentViewMode === 'timeline' ? 'N/A (Ocultas)' : subgraph.links.length}</span>
                     </div>
                 </div>
 
@@ -616,12 +931,19 @@
                     <h3>Tipos de Nodos</h3>
                     <div id="nodeTypeChart"></div>
                 </div>
+            `;
 
-                <div class="info-section">
-                    <h3>Tipos de Conexión</h3>
-                    <div id="connectionChart"></div>
-                </div>
+            // Only show connection chart if not in timeline mode
+            if (currentViewMode !== 'timeline') {
+                html += `
+                    <div class="info-section">
+                        <h3>Tipos de Conexión</h3>
+                        <div id="connectionChart"></div>
+                    </div>
+                `;
+            }
 
+            html += `
                 <div class="info-section">
                     <h3>Detalles de Nodos</h3>
                     <div style="max-height: 200px; overflow-y: auto;">
@@ -633,8 +955,9 @@
                 categorized.sourceNodes.forEach(node => {
                     const nodeType = node["Node Type"] || "Other";
                     const color = getNodeTypeColor(nodeType);
+                    const releaseDate = node.release_date ? ` (${node.release_date})` : '';
                     html += `<div style="font-size: 12px; margin: 3px 0; padding: 5px; background: ${color}20; border-left: 4px solid ${color}; border-radius: 4px;">
-                        <strong>${node.name}</strong> (${nodeType})
+                        <strong>${node.name}</strong> (${nodeType})${releaseDate}
                     </div>`;
                 });
             }
@@ -645,8 +968,9 @@
                 categorized.targetNodes.forEach(node => {
                     const nodeType = node["Node Type"] || "Other";
                     const color = getNodeTypeColor(nodeType);
+                    const releaseDate = node.release_date ? ` (${node.release_date})` : '';
                     html += `<div style="font-size: 12px; margin: 3px 0; padding: 5px; background: ${color}20; border-left: 4px solid ${color}; border-radius: 4px;">
-                        <strong>${node.name}</strong> (${nodeType})
+                        <strong>${node.name}</strong> (${nodeType})${releaseDate}
                     </div>`;
                 });
             }
@@ -661,8 +985,10 @@
             // Create node type chart with colors
             createColoredBarChart('nodeTypeChart', nodeTypeStats, nodeTypeColors);
             
-            // Create connection type chart
-            createBarChart('connectionChart', connectionTypeStats, '#4b0002');
+            // Create connection type chart only if not in timeline mode
+            if (currentViewMode !== 'timeline') {
+                createBarChart('connectionChart', connectionTypeStats, '#4b0002');
+            }
         }
 
         // Function to create colored bar charts
@@ -858,11 +1184,33 @@
                 return;
             }
 
+            // Calculate dynamic timeline range if in timeline mode
+            if (currentViewMode === 'timeline') {
+                const timelineRange = calculateTimelineRange(subgraph.nodes);
+                timelineConfig.startYear = timelineRange.startYear;
+                timelineConfig.endYear = timelineRange.endYear;
+                
+                // Update timeline info display
+                const timelineInfo = document.getElementById('timelineInfo');
+                timelineInfo.innerHTML = `Timeline dinámico: ${timelineConfig.startYear} - ${timelineConfig.endYear}`;
+                timelineInfo.style.display = 'block';
+            } else {
+                document.getElementById('timelineInfo').style.display = 'none';
+            }
+
             const categorized = categorizeNodes(subgraph);
             displayNetworkInfo(subgraph);
             updateInfoPanel(subgraph);
 
-            // createTimelines();
+            // Create timelines only in timeline mode
+            let timeScale;
+            if (currentViewMode === 'timeline') {
+                timeScale = createTimelines();
+            } else {
+                timeScale = d3.scaleLinear()
+                    .domain([timelineConfig.startYear, timelineConfig.endYear])
+                    .range([timelineConfig.leftX, timelineConfig.rightX]);
+            }
 
             // Draw zone borders
             Object.entries(zones).forEach(([zoneName, zone]) => {
@@ -893,50 +1241,50 @@
                 .attr("y", zones.target.y + 20)
                 .text("Targets");
 
-            // Prepare nodes with better initial positions
-            categorized.sourceNodes.forEach((node, i) => {
+            // Position nodes based on current view mode
+            categorized.sourceNodes.forEach(node => {
                 node.level = 'source';
-                const spacing = (width - 200) / (categorized.sourceNodes.length + 1);
-                node.x = 100 + spacing * (i + 1) + (Math.random() - 0.5) * 50;
-                node.y = zones.source.y + zones.source.height / 2 + (Math.random() - 0.5) * 40;
             });
-
-            if (categorized.centerNode) {
-                categorized.centerNode.level = 'center';
-                categorized.centerNode.x = width / 2;
-                categorized.centerNode.y = zones.center.y + zones.center.height / 2;
-            }
-
-            categorized.targetNodes.forEach((node, i) => {
+            categorized.targetNodes.forEach(node => {
                 node.level = 'target';
-                const spacing = (width - 200) / (categorized.targetNodes.length + 1);
-                node.x = 100 + spacing * (i + 1) + (Math.random() - 0.5) * 50;
-                node.y = zones.target.y + zones.target.height / 2 + (Math.random() - 0.5) * 40;
             });
+            
+            positionNodes(categorized, timeScale);
 
             allNodes = [...categorized.sourceNodes, categorized.centerNode, ...categorized.targetNodes].filter(n => n);
-            allLinks = subgraph.links;
+            
+            // Filter links to ensure they only include nodes that are actually displayed
+            const nodeIds = new Set(allNodes.map(n => n.id));
+            allLinks = subgraph.links.filter(link => 
+                nodeIds.has(link.source) && nodeIds.has(link.target)
+            );
 
-            // Add arrowhead marker
-            svg.append("defs").append("marker")
-                .attr("id", "arrowhead")
-                .attr("viewBox", "0 -5 10 10")
-                .attr("refX", 20)
-                .attr("refY", 0)
-                .attr("markerWidth", 6)
-                .attr("markerHeight", 6)
-                .attr("orient", "auto")
-                .append("path")
-                .attr("d", "M 0,-5 L 10,0 L 0,5")
-                .attr("fill", "#666");
+            // Only create links and arrowheads if NOT in timeline mode
+            if (currentViewMode !== 'timeline') {
+                // Add arrowhead marker
+                svg.append("defs").append("marker")
+                    .attr("id", "arrowhead")
+                    .attr("viewBox", "0 -5 10 10")
+                    .attr("refX", 20)
+                    .attr("refY", 0)
+                    .attr("markerWidth", 6)
+                    .attr("markerHeight", 6)
+                    .attr("orient", "auto")
+                    .append("path")
+                    .attr("d", "M 0,-5 L 10,0 L 0,5")
+                    .attr("fill", "#666");
 
-            // Create links
-            linkElements = g.selectAll("line")
-                .data(allLinks)
-                .enter()
-                .append("line")
-                .attr("class", "link")
-                .attr("marker-end", "url(#arrowhead)");
+                // Create links
+                linkElements = g.selectAll("line")
+                    .data(allLinks)
+                    .enter()
+                    .append("line")
+                    .attr("class", "link")
+                    .attr("marker-end", "url(#arrowhead)");
+            } else {
+                // In timeline mode, set linkElements to empty selection
+                linkElements = g.selectAll("line.link").data([]);
+            }
 
             // Create nodes with dynamic colors
             nodeElements = g.selectAll("circle")
@@ -968,6 +1316,7 @@
                 .on("mouseover", function(event, d) {
                     // Mostrar tooltip
                     const nodeType = d["Node Type"] || "Other";
+                    const releaseDate = d.release_date ? `<br/><strong>Fecha:</strong> ${d.release_date}` : '';
                     tooltip.transition()
                         .duration(200)
                         .style("opacity", .9);
@@ -975,7 +1324,7 @@
                         <strong>${d.name}</strong><br/>
                         <strong>Tipo:</strong> ${nodeType}<br/>
                         <strong>ID:</strong> ${d.id}<br/>
-                        <strong>Nivel:</strong> ${d.level}
+                        <strong>Nivel:</strong> ${d.level}${releaseDate}
                     `)
                         .style("left", (event.pageX + 10) + "px")
                         .style("top", (event.pageY - 28) + "px");
@@ -991,8 +1340,6 @@
                     .on("drag", dragged)
                     .on("end", dragended));
 
-                createTimelines();
-
             // Create labels
             labelElements = g.selectAll("text.node-label")
                 .data(allNodes)
@@ -1001,70 +1348,94 @@
                 .attr("class", d => `node-label ${d.level === 'center' ? 'center-label' : ''}`)
                 .text(d => d.name.length > 10 ? d.name.slice(0, 10) + "..." : d.name);
 
-
-            // Create separate simulations for each level
+            // Create separate simulations for each level with different forces based on view mode
             if (categorized.sourceNodes.length > 0) {
-                sourceSimulation = d3.forceSimulation(categorized.sourceNodes)
-                    .force("charge", d3.forceManyBody().strength(-100))
-                    .force("x", d3.forceX(width / 2).strength(0.05))
-                    .force("y", d3.forceY(zones.source.y + zones.source.height / 2).strength(0.3))
-                    .force("collision", d3.forceCollide(30))
-                    .alpha(0.3)
-                    .alphaDecay(0.02)
-                    .on("tick", ticked);
+                if (currentViewMode === 'timeline') {
+                    sourceSimulation = d3.forceSimulation(categorized.sourceNodes)
+                        .force("charge", d3.forceManyBody().strength(-30)) // Reduced repulsion
+                        .force("x", d3.forceX(d => d.timelineX || d.x).strength(0.9)) // Strong attraction to timeline position
+                        .force("y", d3.forceY(d => d.timelineY || d.y).strength(0.7)) // Strong Y position
+                        .force("collision", d3.forceCollide().radius(20).strength(0.8)) // Adaptive collision
+                        .alpha(0.3)
+                        .alphaDecay(0.01) // Slower decay for better settling
+                        .on("tick", ticked);
+                } else {
+                    sourceSimulation = d3.forceSimulation(categorized.sourceNodes)
+                        .force("charge", d3.forceManyBody().strength(-100))
+                        .force("x", d3.forceX(width / 2).strength(0.05))
+                        .force("y", d3.forceY(zones.source.y + zones.source.height / 2).strength(0.3))
+                        .force("collision", d3.forceCollide(30))
+                        .alpha(0.3)
+                        .alphaDecay(0.02)
+                        .on("tick", ticked);
+                }
                 
                 sourceSimulation.on("tick.bounds", () => {
                     categorized.sourceNodes.forEach(node => {
-                        node.x = Math.max(100, Math.min(width - 100, node.x));
-                        node.y = Math.max(zones.source.y + 30, Math.min(zones.source.y + zones.source.height - 30, node.y));
+                        node.x = Math.max(timelineConfig.leftX, Math.min(timelineConfig.rightX, node.x));
+                        node.y = Math.max(zones.source.y + 20, Math.min(zones.source.y + zones.source.height - 20, node.y));
                     });
                 });
             }
 
             if (categorized.centerNode) {
                 centerSimulation = d3.forceSimulation([categorized.centerNode])
-                    .force("x", d3.forceX(width / 2).strength(0.5))
-                    .force("y", d3.forceY(zones.center.y + zones.center.height / 2).strength(0.5))
+                    .force("x", d3.forceX(width / 2).strength(0.8))
+                    .force("y", d3.forceY(zones.center.y + zones.center.height / 2).strength(0.8))
                     .alpha(0.1)
                     .on("tick", ticked);
             }
 
             if (categorized.targetNodes.length > 0) {
-                targetSimulation = d3.forceSimulation(categorized.targetNodes)
-                    .force("charge", d3.forceManyBody().strength(-100))
-                    .force("x", d3.forceX(width / 2).strength(0.05))
-                    .force("y", d3.forceY(zones.target.y + zones.target.height / 2).strength(0.3))
-                    .force("collision", d3.forceCollide(30))
-                    .alpha(0.3)
-                    .alphaDecay(0.02)
-                    .on("tick", ticked);
+                if (currentViewMode === 'timeline') {
+                    targetSimulation = d3.forceSimulation(categorized.targetNodes)
+                        .force("charge", d3.forceManyBody().strength(-30)) // Reduced repulsion
+                        .force("x", d3.forceX(d => d.timelineX || d.x).strength(0.9)) // Strong attraction to timeline position
+                        .force("y", d3.forceY(d => d.timelineY || d.y).strength(0.7)) // Strong Y position
+                        .force("collision", d3.forceCollide().radius(20).strength(0.8)) // Adaptive collision
+                        .alpha(0.3)
+                        .alphaDecay(0.01) // Slower decay for better settling
+                        .on("tick", ticked);
+                } else {
+                    targetSimulation = d3.forceSimulation(categorized.targetNodes)
+                        .force("charge", d3.forceManyBody().strength(-100))
+                        .force("x", d3.forceX(width / 2).strength(0.05))
+                        .force("y", d3.forceY(zones.target.y + zones.target.height / 2).strength(0.3))
+                        .force("collision", d3.forceCollide(30))
+                        .alpha(0.3)
+                        .alphaDecay(0.02)
+                        .on("tick", ticked);
+                }
                 
                 targetSimulation.on("tick.bounds", () => {
                     categorized.targetNodes.forEach(node => {
-                        node.x = Math.max(100, Math.min(width - 100, node.x));
-                        node.y = Math.max(zones.target.y + 30, Math.min(zones.target.y + zones.target.height - 30, node.y));
+                        node.x = Math.max(timelineConfig.leftX, Math.min(timelineConfig.rightX, node.x));
+                        node.y = Math.max(zones.target.y + 20, Math.min(zones.target.y + zones.target.height - 20, node.y));
                     });
                 });
             }
 
             function ticked() {
-                linkElements
-                    .attr("x1", d => {
-                        const sourceNode = allNodes.find(n => n.id === d.source);
-                        return sourceNode ? sourceNode.x : 0;
-                    })
-                    .attr("y1", d => {
-                        const sourceNode = allNodes.find(n => n.id === d.source);
-                        return sourceNode ? sourceNode.y : 0;
-                    })
-                    .attr("x2", d => {
-                        const targetNode = allNodes.find(n => n.id === d.target);
-                        return targetNode ? targetNode.x : 0;
-                    })
-                    .attr("y2", d => {
-                        const targetNode = allNodes.find(n => n.id === d.target);
-                        return targetNode ? targetNode.y : 0;
-                    });
+                // Only update links if we're not in timeline mode
+                if (currentViewMode !== 'timeline' && linkElements) {
+                    linkElements
+                        .attr("x1", d => {
+                            const sourceNode = allNodes.find(n => n.id === d.source);
+                            return sourceNode ? sourceNode.x : 0;
+                        })
+                        .attr("y1", d => {
+                            const sourceNode = allNodes.find(n => n.id === d.source);
+                            return sourceNode ? sourceNode.y : 0;
+                        })
+                        .attr("x2", d => {
+                            const targetNode = allNodes.find(n => n.id === d.target);
+                            return targetNode ? targetNode.x : 0;
+                        })
+                        .attr("y2", d => {
+                            const targetNode = allNodes.find(n => n.id === d.target);
+                            return targetNode ? targetNode.y : 0;
+                        });
+                }
 
                 nodeElements
                     .attr("cx", d => d.x)
@@ -1076,9 +1447,9 @@
             }
 
             function dragstarted(event, d) {
-                if (d.level === 'source' && sourceSimulation && !event.active) sourceSimulation.alphaTarget(0.3).restart();
-                if (d.level === 'center' && centerSimulation && !event.active) centerSimulation.alphaTarget(0.3).restart();
-                if (d.level === 'target' && targetSimulation && !event.active) targetSimulation.alphaTarget(0.3).restart();
+                if (d.level === 'source' && sourceSimulation && !event.active) sourceSimulation.alphaTarget(0.1).restart();
+                if (d.level === 'center' && centerSimulation && !event.active) centerSimulation.alphaTarget(0.1).restart();
+                if (d.level === 'target' && targetSimulation && !event.active) targetSimulation.alphaTarget(0.1).restart();
                 d.fx = d.x;
                 d.fy = d.y;
             }
@@ -1092,9 +1463,29 @@
                 if (d.level === 'source' && sourceSimulation && !event.active) sourceSimulation.alphaTarget(0);
                 if (d.level === 'center' && centerSimulation && !event.active) centerSimulation.alphaTarget(0);
                 if (d.level === 'target' && targetSimulation && !event.active) targetSimulation.alphaTarget(0);
+                
+                // For timeline nodes, snap back to approximate timeline position if dragged too far (only in timeline mode)
+                if (currentViewMode === 'timeline') {
+                    const nodeType = d["Node Type"];
+                    if ((nodeType === 'Song' || nodeType === 'Album') && d.release_date && d.timelineX) {
+                        const distanceFromTimeline = Math.abs(d.x - d.timelineX);
+                        if (distanceFromTimeline > 100) { // If dragged more than 100px from timeline
+                            d.fx = d.timelineX + (Math.random() - 0.5) * 40; // Snap back with slight randomness
+                            setTimeout(() => { d.fx = null; }, 1000); // Release after 1 second
+                        }
+                    }
+                }
+                
                 d.fx = null;
                 d.fy = null;
             }
+        }
+
+        // Load data
+        function loadData(data) {
+            originalData = data;
+            // Initialize with 'all' view mode by default
+            setViewMode('all');
         }
 
         // Load data
@@ -1107,6 +1498,7 @@
         // Make functions globally accessible
         window.loadTargetNode = loadTargetNode;
         window.clearGraph = clearGraph;
+        window.setViewMode = setViewMode;
     </script>
 </body>
 </html>
