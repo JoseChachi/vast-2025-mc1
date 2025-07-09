@@ -158,10 +158,6 @@ def calculate_cumulative_influence_with_albums(nodes, links, sailor_shift_id=172
     
     return cumulative_data
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
 import os
 
 def load_data_from_file(file_path='data/MC1_graph.json'):
@@ -789,10 +785,17 @@ def influence():
 def p1():
     return render_template('otherlanding2.html')
 
-@app.route('/p1')
+@app.route('/')
 def p1_prev():
     return render_template('p1.html')
 
+@app.route('/p2')
+def question2():
+    return render_template('graph-2.html')
+
+@app.route('/p3') 
+def p3():
+    return render_template('index_3.html')
 
 @app.route('/data/<path:filename>')
 def data(filename):
