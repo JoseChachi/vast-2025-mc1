@@ -275,7 +275,7 @@
     <div id="rrg" class="chart">
       <h2>Comparacion Popularidad/Influencia</h2>
       <div class="rrg-container">
-        <svg id="rrgChart" width="600" height="600"></svg>
+        <svg id="rrgChart" width="600" height="610"></svg>
         <div id="rrgLegend"></div>
       </div>
     </div>
@@ -328,7 +328,7 @@
   const MAX_SHOW = 20, MAX_SEL = 3;
   let data, graph, years, lastYear, topActors, tableActors, selected = [], currentYear;
 Promise.all([
-  d3.csv("/data/actor_data_updated.csv", d => ({
+  d3.csv("/data/actor_data_updated2.csv", d => ({
     actor_id:    +d.actor_id,
     type:         d.type,
     name:         d.name,
@@ -341,7 +341,7 @@ Promise.all([
     total_score: +d.total_score,
     isPrediction: false
   })),
-  d3.csv("/data/actor_predictions.csv", d => ({
+  d3.csv("/data/actor_predictions_2.csv", d => ({
     actor_id:    +d.actor_id,
     name:         d.name,
     genre:        d.genre,
@@ -354,8 +354,10 @@ Promise.all([
     isPrediction: true
   })),
   d3.json("/data/MC1_graph.json")
+
 ]).then(([histRows, predRows, graphJson]) => {
   // 1) concatenamos histórico + predicción
+
   data  = histRows.concat(predRows);
   graph = graphJson;
 
@@ -366,6 +368,17 @@ Promise.all([
     l.target = +l.target;
   });
 
+  const popExtent = d3.extent(data, d => d.pop_score);
+  const infExtent = d3.extent(data, d => d.inf_score);
+  const popPad    = (popExtent[1] - popExtent[0]) * 0.05;
+  const infPad    = (infExtent[1] - infExtent[0]) * 0.05;
+
+
+  xGlobal = d3.scaleLinear()
+              .domain([popExtent[0] - popPad, popExtent[1] + popPad]);
+  yGlobal = d3.scaleLinear()
+              .domain([infExtent[0] - infPad, infExtent[1] + infPad]);
+              
   // 3) calcular años, recordando que lastYear debe ser el último histórico
   const allYears = Array.from(new Set(histRows.map(d => d.year)));
   years     = Array.from(new Set(data.map(d => d.year))).sort((a,b) => a - b);
@@ -490,10 +503,25 @@ function drawTimeline(){
   const predYears = years.filter(y => y > lastYear);
   if (predYears.length) {
     const xStart = x(predYears[0]) - (iw/(years.length-1))/2;
-    g.append("rect")
-      .attr("x", xStart).attr("y", 0)
-      .attr("width", iw - xStart).attr("height", ih)
-      .attr("fill", "#999").attr("opacity", 0.1);
+    const width = iw - xStart;
+
+      g.append("rect")
+      .attr("x", xStart)
+      .attr("y", 0)
+      .attr("width", width)
+      .attr("height", ih)
+      .attr("fill", "#999")
+      .attr("opacity", 0.3);
+
+    // 2) Texto indicador de “Años Futuros”
+    g.append("text")
+      .attr("x", xStart + width/2)      // centro del área de predicción
+      .attr("y", ih + 40)               // un poco debajo del eje X
+      .attr("text-anchor", "middle")
+      .attr("fill", "#666")
+      .attr("font-size", "0.9rem")
+      .text("Años Futuros")
+      .attr("font-weight", "bold");
   }
 
   // ejes
@@ -506,8 +534,20 @@ function drawTimeline(){
       .tickSize(-ih).tickPadding(8))
     .selectAll("text")
       .attr("transform","rotate(45)").style("text-anchor","start");
+
   g.append("g").attr("class","axis")
     .call(d3.axisLeft(y).ticks(4).tickSize(-iw).tickPadding(8));
+
+  // etiqueta del eje Y
+  g.append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -ih/2)          // desplaza a mitad de altura
+    .attr("y", -m.l + 10)      // separa un poco del margen izquierdo
+    .attr("text-anchor", "middle")
+    .attr("fill", "#666")
+    .attr("font-size", "0.9rem")
+    .text("Total Score");
+
 
   // dibuja UNA SÓLA línea (histórica + predicción) para cada artista
   selected.forEach((aid,i) => {
@@ -528,7 +568,7 @@ function drawTimeline(){
       .attr("d", lineGen);
   });
 
-  // slider (igual que antes)
+
   const idx  = years.indexOf(currentYear),
         step = iw/(years.length-1),
         bw   = step*1.2;
@@ -584,15 +624,38 @@ function drawTimeline(){
     // ejes
     g.append("line").attr("class","axis-rrg").attr("x1",x0).attr("y1",0).attr("x2",x0).attr("y2",H);
     g.append("line").attr("class","axis-rrg").attr("x1",0).attr("y1",y0).attr("x2",W).attr("y2",y0);
+
+      // etiqueta eje Y
+  g.append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -H/2)
+    .attr("y", -m + 15)        // desplázalo hacia la izquierda del gráfico
+    .attr("text-anchor", "middle")
+    .attr("fill", "#333")
+    .attr("font-size", "0.9rem")
+    .text("Influence Score");
+
+
+  // etiqueta eje X
+  g.append("text")
+    .attr("x", W/2)
+    .attr("y", H + 60)         // separa lo suficiente del eje
+    .attr("text-anchor", "middle")
+    .attr("fill", "#333")
+    .attr("font-size", "0.9rem")
+    .text("Popularity Score");
+
     g.append("g").attr("class","axis-rrg").attr("transform",`translate(0,${H})`)
       .call(d3.axisBottom(x).ticks(6).tickSize(-H).tickPadding(6));
     g.append("g").attr("class","axis-rrg")
       .call(d3.axisLeft(y).ticks(6).tickSize(-W).tickPadding(6));
+
     // etiquetas
     svg.append("text").attr("class","quad-label").attr("x",m+x0/2).attr("y",m-10).text("Low-Pop / Hi-Inf");
     svg.append("text").attr("class","quad-label").attr("x",m+x0+(W-x0)/2).attr("y",m-10).text("Hi-Pop / Hi-Inf");
     svg.append("text").attr("class","quad-label").attr("x",m+x0/2).attr("y",m+H+40).text("Low-Pop / Low-Inf");
     svg.append("text").attr("class","quad-label").attr("x",m+x0+(W-x0)/2).attr("y",m+H+40).text("Hi-Pop / Low-Inf");
+
     // trayectorias
     const lineGen=d3.line().curve(d3.curveCatmullRom.alpha(0.5))
                      .x(d=>x(d.pop_score)).y(d=>y(d.inf_score));
