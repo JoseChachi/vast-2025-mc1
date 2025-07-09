@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oceanus Folk Collaborations</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: white;
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #FF6B6B;
+        }
+        
+        .chart-container {
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 400px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+            font-size: 1.2em;
+        }
+        
+        .timeline-line {
+            stroke-width: 4;
+            stroke-linecap: round;
+        }
+        
+        .career-line {
+            stroke: #17a2b8;
+            stroke-dasharray: 5,5;
+            opacity: 0.7;
+        }
+        
+        .collaboration-line {
+            stroke: #28a745;
+            stroke-width: 6;
+        }
+        
+        .start-circle {
+            fill: #17a2b8;
+            stroke: #333;
+            stroke-width: 2;
+            cursor: pointer;
+        }
+        
+        .sailor-shift-circle {
+            fill: #28a745;
+            stroke: #333;
+            stroke-width: 3;
+            cursor: pointer;
+        }
+        
+        .end-circle {
+            fill: #dc3545;
+            stroke: #333;
+            stroke-width: 3;
+            cursor: pointer;
+        }
+        
+        .post-sailor-line {
+            stroke: #6c757d;
+            stroke-dasharray: 3,3;
+            opacity: 0.6;
+            stroke-width: 4;
+        }
+        
+        .career-end-circle {
+            fill: #6c757d;
+            stroke: #333;
+            stroke-width: 2;
+            cursor: pointer;
+        }
+        
+        .artist-label {
+            font-size: 14px;
+            font-weight: 500;
+            fill: #333;
+        }
+        
+        .year-label {
+            font-size: 12px;
+            fill: #666;
+        }
+        
+        .legend {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .legend h3 {
+            color: #333;
+            margin-top: 0;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            color: #333;
+        }
+        
+        .legend-circle {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .legend-line {
+            width: 30px;
+            height: 4px;
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+        
+        .tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            max-width: 300px;
+            z-index: 1000;
+        }
+        
+        .error {
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="total-collaborators">-</div>
+                <div>Collaborators</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="total-works">-</div>
+                <div>Collaborated works</div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="loading">Loading collaboration data...</div>
+        </div>
+        
+        <div class="legend">
+            <h3 style="margin-top: 0;">Legend</h3>
+            <div class="legend-item">
+                <div class="legend-circle" style="background: #17a2b8;"></div>
+                <span>Beginning of the artist's career</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-circle" style="background: #28a745;"></div>
+                <span>First collaboration with Sailor Shift</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-circle" style="background: #6c757d;"></div>
+                <span>The real end of the artist's career</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line" style="background: #17a2b8; opacity: 0.7;"></div>
+                <span>Pre-Sailor Shift Period</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line" style="background: #28a745;"></div>
+                <span>Period of collaboration</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line" style="background: #6c757d; opacity: 0.6;"></div>
+                <span>Post-Sailor Shift Period</span>
+            </div>
+        </div>
+        
+        <div class="tooltip" id="tooltip"></div>
+    </div>
+
+    <script>
+        let collaborationData = [];
+        const sailorShiftEnd = 2024; // Año de corte del análisis
+
+        // Función para cargar datos del backend
+        async function loadData() {
+            try {
+                console.log('Cargando datos del backend...');
+                const response = await fetch('/api/collaborations');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    collaborationData = data.collaborators;
+                    console.log(`Datos cargados: ${collaborationData.length} colaboradores`);
+                    return true;
+                } else {
+                    throw new Error(data.error || 'Error desconocido del servidor');
+                }
+                
+            } catch (error) {
+                console.error('Error cargando datos:', error);
+                showError(`Error al cargar datos: ${error.message}`);
+                return false;
+            }
+        }
+
+        // Función para mostrar errores
+        function showError(message) {
+            document.querySelector('.chart-container').innerHTML = `
+                <div class="error">
+                    <h3>Error al cargar datos</h3>
+                    <p>${message}</p>
+                    <p>Verifica que el archivo data/MC1_graph.json esté disponible.</p>
+                </div>
+            `;
+        }
+
+        // Función para crear la visualización
+        function createVisualization() {
+            if (collaborationData.length === 0) {
+                showError('No se encontraron colaboradores en el género Oceanus Folk');
+                return;
+            }
+
+            // Limpiar contenedor
+            document.querySelector('.chart-container').innerHTML = '<svg id="timeline-chart"></svg>';
+            
+            const margin = { top: 20, right: 100, bottom: 60, left: 200 };
+            const width = 800;
+            const height = Math.max(400, collaborationData.length * 60);
+            
+            const svg = d3.select("#timeline-chart")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+                
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+            
+            // Escalas
+            const minYear = d3.min(collaborationData, d => d.careerStart);
+            const maxCareerYear = d3.max(collaborationData, d => d.careerEnd || sailorShiftEnd);
+            const maxYear = Math.max(maxCareerYear, sailorShiftEnd);
+            
+            const xScale = d3.scaleLinear()
+                .domain([minYear - 1, maxYear + 1])
+                .range([0, width]);
+                
+            const yScale = d3.scaleBand()
+                .domain(collaborationData.map(d => d.name))
+                .range([0, height])
+                .padding(0.4);
+            
+            // Eje X
+            const xAxis = d3.axisBottom(xScale)
+                .tickFormat(d3.format("d"))
+                .ticks(Math.min(maxYear - minYear + 1, 15));
+                
+            g.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(xAxis)
+                .selectAll("text")
+                .attr("class", "year-label");
+                
+            // Crear líneas y círculos para cada colaborador
+            collaborationData.forEach((artist, i) => {
+                const y = yScale(artist.name) + yScale.bandwidth() / 2;
+                
+                // Línea pre-Sailor Shift (carrera inicial)
+                if (artist.careerStart < artist.sailorShiftStart) {
+                    g.append("line")
+                        .attr("class", "timeline-line career-line")
+                        .attr("x1", xScale(artist.careerStart))
+                        .attr("x2", xScale(artist.sailorShiftStart))
+                        .attr("y1", y)
+                        .attr("y2", y);
+                }
+                
+                // Línea de colaboración con Sailor Shift
+                g.append("line")
+                    .attr("class", "timeline-line collaboration-line")
+                    .attr("x1", xScale(artist.sailorShiftStart))
+                    .attr("x2", xScale(sailorShiftEnd))
+                    .attr("y1", y)
+                    .attr("y2", y);
+                
+                // Línea post-Sailor Shift (si el artista siguió trabajando)
+                if (artist.careerEnd && artist.careerEnd > sailorShiftEnd) {
+                    g.append("line")
+                        .attr("class", "timeline-line post-sailor-line")
+                        .attr("x1", xScale(sailorShiftEnd))
+                        .attr("x2", xScale(artist.careerEnd))
+                        .attr("y1", y)
+                        .attr("y2", y);
+                }
+                
+                // Círculo de inicio de carrera
+                g.append("circle")
+                    .attr("class", "start-circle")
+                    .attr("cx", xScale(artist.careerStart))
+                    .attr("cy", y)
+                    .attr("r", 6)
+                    .on("mouseover", function(event) {
+                        showTooltip(event, `<strong>${artist.name}</strong><br>Inicio de carrera: ${artist.careerStart}`);
+                    })
+                    .on("mouseout", hideTooltip);
+                
+                // Círculo de inicio de colaboración (más grande)
+                g.append("circle")
+                    .attr("class", "sailor-shift-circle")
+                    .attr("cx", xScale(artist.sailorShiftStart))
+                    .attr("cy", y)
+                    .attr("r", 10)
+                    .on("mouseover", function(event) {
+                        const worksText = artist.works.slice(0, 3).join(", ") + 
+                                        (artist.works.length > 3 ? "..." : "");
+                        showTooltip(event, `<strong>${artist.name}</strong><br>
+                                          First collaboration: ${artist.sailorShiftStart}<br>
+                                          Collaborated works: ${artist.collaborations}<br>
+                                          Works: ${worksText}`);
+                    })
+                    .on("mouseout", hideTooltip);
+                
+                // Círculo de fin real de carrera (si es diferente al período analizado)
+                if (artist.careerEnd && artist.careerEnd > sailorShiftEnd) {
+                    g.append("circle")
+                        .attr("class", "career-end-circle")
+                        .attr("cx", xScale(artist.careerEnd))
+                        .attr("cy", y)
+                        .attr("r", 5)
+                        .on("mouseover", function(event) {
+                            showTooltip(event, `<strong>${artist.name}</strong><br>Fin de carrera: ${artist.careerEnd}`);
+                        })
+                        .on("mouseout", hideTooltip);
+                }
+                
+                // Etiqueta del artista
+                g.append("text")
+                    .attr("class", "artist-label")
+                    .attr("x", -10)
+                    .attr("y", y + 5)
+                    .attr("text-anchor", "end")
+                    .text(artist.name);
+                    
+                // Número de colaboraciones (al final de la línea más larga)
+                const endX = artist.careerEnd && artist.careerEnd > sailorShiftEnd ? 
+                            xScale(artist.careerEnd) : xScale(sailorShiftEnd);
+                g.append("text")
+                    .attr("class", "artist-label")
+                    .attr("x", endX + 15)
+                    .attr("y", y + 5)
+                    .attr("text-anchor", "start")
+                    .style("fill", "#dc3545")
+                    .style("font-weight", "bold")
+                    .text(artist.collaborations);
+            });
+            
+            // Etiquetas de ejes
+            g.append("text")
+                .attr("x", width / 2)
+                .attr("y", height + 50)
+                .attr("text-anchor", "middle")
+                .attr("class", "year-label")
+                .style("font-size", "14px")
+                .text("Year");
+                
+            g.append("text")
+                .attr("x", -margin.left + 10)
+                .attr("y", -5)
+                .attr("class", "artist-label")
+                .style("font-size", "14px")
+                .text("Collaborators");
+                
+            g.append("text")
+                .attr("x", width + 30)
+                .attr("y", -5)
+                .attr("class", "artist-label")
+                .style("font-size", "14px")
+                .style("fill", "#dc3545")
+                .text("Works");
+        }
+
+        // Actualizar estadísticas
+        function updateStats() {
+            const totalCollaborators = collaborationData.length;
+            const totalWorks = collaborationData.reduce((sum, artist) => sum + artist.collaborations, 0);
+            
+            document.getElementById("total-collaborators").textContent = totalCollaborators;
+            document.getElementById("total-works").textContent = totalWorks;
+        }
+
+        // Funciones de tooltip
+        function showTooltip(event, content) {
+            const tooltip = d3.select("#tooltip");
+            tooltip.style("opacity", 1)
+                .html(content)
+                .style("left", (event.clientX + 10) + "px")
+                .style("top", (event.clientY - 10) + "px");
+        }
+        
+        function hideTooltip() {
+            d3.select("#tooltip").style("opacity", 0);
+        }
+
+        // Función principal
+        async function init() {
+            console.log('Inicializando aplicación...');
+            
+            const success = await loadData();
+            
+            if (success && collaborationData.length > 0) {
+                createVisualization();
+                updateStats();
+                console.log('Visualización completada exitosamente');
+            } else {
+                updateStats(); // Actualizar con valores por defecto
+            }
+        }
+
+        // Inicializar cuando se carga la página
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

@@ -1,0 +1,1721 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sailor Shift Analysis Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f8f9fa;
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .dashboard {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto auto;
+            gap: 20px;
+        }
+        
+        .top-section {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        
+        .bottom-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .chart-panel {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            padding: 20px;
+            position: relative;
+        }
+        
+        .panel-title {
+            font-size: 1.5em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        /* Estilos del gráfico de Oceanus Folk */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #FF6B6B;
+        }
+        
+        .timeline-container {
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 400px;
+        }
+        
+        .timeline-line {
+            stroke-width: 4;
+            stroke-linecap: round;
+        }
+        
+        .career-line {
+            stroke: #17a2b8;
+            stroke-dasharray: 5,5;
+            opacity: 0.7;
+        }
+        
+        .collaboration-line {
+            stroke: #28a745;
+            stroke-width: 6;
+        }
+        
+        .start-circle {
+            fill: #17a2b8;
+            stroke: #333;
+            stroke-width: 2;
+            cursor: pointer;
+        }
+        
+        .sailor-shift-circle {
+            fill: #28a745;
+            stroke: #333;
+            stroke-width: 3;
+            cursor: pointer;
+        }
+        
+        .post-sailor-line {
+            stroke: #6c757d;
+            stroke-dasharray: 3,3;
+            opacity: 0.6;
+            stroke-width: 4;
+        }
+        
+        .career-end-circle {
+            fill: #6c757d;
+            stroke: #333;
+            stroke-width: 2;
+            cursor: pointer;
+        }
+        
+        .artist-label {
+            font-size: 12px;
+            font-weight: 500;
+            fill: #333;
+        }
+        
+        .year-label {
+            font-size: 10px;
+            fill: #666;
+        }
+        
+        .legend {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .legend h3 {
+            color: #333;
+            margin-top: 0;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            color: #333;
+        }
+        
+        .legend-circle {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .legend-line {
+            width: 30px;
+            height: 4px;
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+        
+        /* Estilos del gráfico de influencia */
+        .influence-container {
+            min-height: 600px;
+        }
+        
+        .axis {
+            font-size: 12px;
+        }
+        
+        .axis-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .person-group {
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+        
+        .person-group.highlighted {
+            opacity: 1;
+        }
+        
+        .person-group.dimmed {
+            opacity: 0.2;
+        }
+        
+        .person-group.hidden {
+            display: none;
+        }
+        
+        .lollipop-line {
+            stroke-width: 2;
+            transition: stroke-width 0.3s;
+        }
+        
+        .lollipop-line.highlighted {
+            stroke-width: 4;
+        }
+        
+        .dot {
+            stroke-width: 3;
+            r: 6;
+            cursor: pointer;
+            transition: r 0.3s;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+        }
+        
+        .dot:hover, .dot.highlighted {
+            r: 10;
+            stroke-width: 4;
+        }
+        
+        .connection-line {
+            fill: none;
+            stroke-width: 2;
+            opacity: 0.6;
+            stroke-dasharray: 3,3;
+            transition: stroke-width 0.3s;
+        }
+        
+        .connection-line.highlighted {
+            stroke-width: 3;
+            opacity: 0.8;
+        }
+        
+        .grid line {
+            stroke: #e0e0e0;
+            stroke-dasharray: 2,2;
+        }
+        
+        .grid path {
+            stroke-width: 0;
+        }
+        
+        .legend-container {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .legend-title {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 8px;
+            color: #495057;
+        }
+        
+        .filter-buttons {
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+        }
+        
+        .filter-btn {
+            font-size: 10px;
+            padding: 3px 6px;
+            margin: 2px;
+            border: 1px solid #6c757d;
+            background-color: white;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        
+        .filter-btn:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .filter-btn.active {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        /* Estilos del gráfico de colaboradores */
+        .network-container {
+            min-height: 500px;
+            position: relative;
+        }
+        
+        .controls {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .control-group label {
+            font-weight: 500;
+            font-size: 14px;
+            color: #495057;
+        }
+        
+        .stats-text {
+            font-size: 13px;
+            color: #6c757d;
+            background-color: #e9ecef;
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+        
+        .node {
+            stroke: #2c3e50;
+            stroke-width: 2;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .node:hover {
+            stroke-width: 3;
+            filter: drop-shadow(0 0 8px rgba(52, 152, 219, 0.6));
+        }
+        
+        .node.highlighted {
+            stroke: #e74c3c;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 12px rgba(231, 76, 60, 0.8));
+        }
+        
+        .node.clicked {
+            stroke: #f39c12;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 15px rgba(243, 156, 18, 0.8));
+        }
+        
+        .link {
+            stroke: #95a5a6;
+            stroke-width: 2;
+            opacity: 0.6;
+            transition: all 0.3s ease;
+        }
+        
+        .link.highlighted {
+            stroke: #3498db;
+            stroke-width: 4;
+            opacity: 1;
+        }
+        
+        .node-label {
+            font-size: 11px;
+            font-weight: 500;
+            fill: #2c3e50;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .node-label.visible {
+            opacity: 1;
+        }
+        
+        .zoom-controls {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .zoom-btn {
+            width: 35px;
+            height: 35px;
+            background: rgba(255,255,255,0.9);
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            color: #495057;
+            transition: all 0.2s ease;
+        }
+        
+        .zoom-btn:hover {
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .network-legend {
+            position: absolute;
+            top: 70px;
+            left: 20px;
+            background: rgba(255,255,255,0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 12px;
+            border: 1px solid #e9ecef;
+            max-width: 200px;
+        }
+        
+        .network-legend h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 13px;
+        }
+        
+        .legend-item.hidden {
+            opacity: 0.4;
+            text-decoration: line-through;
+        }
+        
+        .legend-item.highlighted {
+            font-weight: bold;
+        }
+        
+        .network-legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            gap: 8px;
+        }
+        
+        .tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            max-width: 300px;
+            z-index: 1000;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+            font-size: 1.2em;
+        }
+        
+        .error {
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+            color: #721c24;
+        }
+        
+        /* Modal para mini-grafo */
+        .mini-graph-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .mini-graph-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 600px;
+            height: 500px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .mini-graph-header {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+            padding: 15px 20px;
+            font-size: 16px;
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .mini-graph-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s ease;
+        }
+        
+        .mini-graph-close:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .mini-graph-content {
+            position: relative;
+            width: 100%;
+            height: calc(100% - 60px);
+        }
+        
+        .mini-node {
+            stroke: #2c3e50;
+            stroke-width: 2;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .mini-node.center {
+            stroke: #f39c12;
+            stroke-width: 3;
+            filter: drop-shadow(0 0 8px rgba(243, 156, 18, 0.6));
+        }
+        
+        .mini-node.connected-sailor {
+            stroke: #3498db;
+            stroke-width: 2;
+        }
+        
+        .mini-node.sailor-shift {
+            stroke: #9b59b6;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 12px rgba(155, 89, 182, 0.8));
+        }
+        
+        .mini-link {
+            stroke: #95a5a6;
+            stroke-width: 2;
+            opacity: 0.6;
+        }
+        
+        .mini-link.sailor-connection {
+            stroke: #9b59b6;
+            stroke-width: 3;
+            opacity: 1;
+            filter: drop-shadow(0 0 4px rgba(155, 89, 182, 0.6));
+        }
+        
+        .mini-node-label {
+            font-size: 10px;
+            font-weight: 500;
+            fill: #2c3e50;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            pointer-events: none;
+        }
+        
+        .mini-graph-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sección superior: Collaborator Network -->
+        <div class="top-section">
+            <div class="panel-title">Collaborator Network</div>
+            <div class="network-container">
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="showLabels">
+                            <input type="checkbox" id="showLabels"> Show names
+                        </label>
+                    </div>
+                    <div class="stats-text" id="network-stats">Loading statistics...</div>
+                </div>
+                
+                <div id="network-loading" class="loading">Loading network...</div>
+                <svg id="network"></svg>
+                
+                <div class="zoom-controls">
+                    <button class="zoom-btn" id="zoomIn">+</button>
+                    <button class="zoom-btn" id="zoomOut">−</button>
+                    <button class="zoom-btn" id="resetZoom">⌂</button>
+                </div>
+                
+                <div class="network-legend">
+                    <h4>Network Legend</h4>
+                    <div class="network-legend-item">
+                        <span style="color: #3498db; font-weight: bold;">●</span>
+                        <span>Connected with Sailor Shift</span>
+                    </div>
+                    <div class="network-legend-item">
+                        <span style="color: #666;">—</span>
+                        <span>Collaborator connections</span>
+                    </div>
+                    <div class="network-legend-item" style="margin-top: 8px; font-style: italic; color: #666; font-size: 11px;">
+                        <span>Size = Connections count</span>
+                    </div>
+                    <div class="network-legend-item" style="margin-top: 5px; font-weight: bold; color: #f39c12; font-size: 11px;">
+                        <span>Click node for details</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sección inferior: Dos gráficos lado a lado -->
+        <div class="bottom-section">
+            <!-- Oceanus Folk Collaborations -->
+            <div class="chart-panel">
+                <div class="panel-title">Oceanus Folk Collaborations with Sailor Shift</div>
+                
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-collaborators">-</div>
+                        <div>Collaborators</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-works">-</div>
+                        <div>Collaborated Works</div>
+                    </div>
+                </div>
+                
+                <div class="timeline-container">
+                    <div class="loading" id="timeline-loading">Loading collaboration data...</div>
+                </div>
+                
+                <div class="legend">
+                    <h3 style="margin-top: 0;">Timeline Legend</h3>
+                    <div class="legend-item">
+                        <div class="legend-circle" style="background: #17a2b8;"></div>
+                        <span>Beginning of artist's career</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-circle" style="background: #28a745;"></div>
+                        <span>First collaboration with Sailor Shift</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-circle" style="background: #6c757d;"></div>
+                        <span>End of artist's career</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line" style="background: #17a2b8; opacity: 0.7;"></div>
+                        <span>Pre-Sailor Shift period</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line" style="background: #28a745;"></div>
+                        <span>Collaboration period</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line" style="background: #6c757d; opacity: 0.6;"></div>
+                        <span>Post-Sailor Shift period</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Gráfico de Influencia -->
+            <div class="chart-panel">
+                <div class="panel-title">Influence Levels Over Time</div>
+                <div class="influence-container">
+                    <div id="influence-loading" class="loading">Loading influence data...</div>
+                    <svg id="influence-chart"></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal para mini-grafo -->
+    <div class="mini-graph-modal" id="miniGraphModal">
+        <div class="mini-graph-container">
+            <div class="mini-graph-header">
+                <span id="miniGraphTitle">Node Connections</span>
+                <button class="mini-graph-close" onclick="closeMiniGraph()">×</button>
+            </div>
+            <div class="mini-graph-content">
+                <svg id="miniGraphSvg" width="600" height="440" style="background: #f8f9fa;"></svg>
+                <div class="mini-graph-info" id="miniGraphInfo">Connections: 0</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // ===============================================
+        // SECCIÓN 1: OCEANUS FOLK COLLABORATIONS
+        // ===============================================
+        
+        let collaborationData = [];
+        const sailorShiftEnd = 2024;
+
+        async function loadTimelineData() {
+            try {
+                const response = await fetch('/api/collaborations');
+                if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                
+                const data = await response.json();
+                if (data.success) {
+                    collaborationData = data.collaborators;
+                    return true;
+                } else {
+                    throw new Error(data.error || 'Unknown server error');
+                }
+            } catch (error) {
+                console.error('Error loading timeline data:', error);
+                showTimelineError(`Error loading data: ${error.message}`);
+                return false;
+            }
+        }
+
+        function showTimelineError(message) {
+            document.querySelector('.timeline-container').innerHTML = `
+                <div class="error">
+                    <h3>Error loading data</h3>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        function createTimelineVisualization() {
+            if (collaborationData.length === 0) {
+                showTimelineError('No collaborators found in Oceanus Folk genre');
+                return;
+            }
+
+            document.querySelector('.timeline-container').innerHTML = '<svg id="timeline-chart"></svg>';
+            
+            const margin = { top: 20, right: 60, bottom: 60, left: 120 };
+            const width = 480;
+            const height = Math.max(300, collaborationData.length * 35);
+            
+            const svg = d3.select("#timeline-chart")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+                
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+            
+            const minYear = d3.min(collaborationData, d => d.careerStart);
+            const maxCareerYear = d3.max(collaborationData, d => d.careerEnd || sailorShiftEnd);
+            const maxYear = Math.max(maxCareerYear, sailorShiftEnd);
+            
+            const xScale = d3.scaleLinear()
+                .domain([minYear - 1, maxYear + 1])
+                .range([0, width]);
+                
+            const yScale = d3.scaleBand()
+                .domain(collaborationData.map(d => d.name))
+                .range([0, height])
+                .padding(0.4);
+            
+            const xAxis = d3.axisBottom(xScale)
+                .tickFormat(d3.format("d"))
+                .ticks(Math.min(maxYear - minYear + 1, 15));
+                
+            g.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(xAxis)
+                .selectAll("text")
+                .attr("class", "year-label");
+                
+            collaborationData.forEach((artist, i) => {
+                const y = yScale(artist.name) + yScale.bandwidth() / 2;
+                
+                if (artist.careerStart < artist.sailorShiftStart) {
+                    g.append("line")
+                        .attr("class", "timeline-line career-line")
+                        .attr("x1", xScale(artist.careerStart))
+                        .attr("x2", xScale(artist.sailorShiftStart))
+                        .attr("y1", y)
+                        .attr("y2", y);
+                }
+                
+                g.append("line")
+                    .attr("class", "timeline-line collaboration-line")
+                    .attr("x1", xScale(artist.sailorShiftStart))
+                    .attr("x2", xScale(sailorShiftEnd))
+                    .attr("y1", y)
+                    .attr("y2", y);
+                
+                if (artist.careerEnd && artist.careerEnd > sailorShiftEnd) {
+                    g.append("line")
+                        .attr("class", "timeline-line post-sailor-line")
+                        .attr("x1", xScale(sailorShiftEnd))
+                        .attr("x2", xScale(artist.careerEnd))
+                        .attr("y1", y)
+                        .attr("y2", y);
+                }
+                
+                g.append("circle")
+                    .attr("class", "start-circle")
+                    .attr("cx", xScale(artist.careerStart))
+                    .attr("cy", y)
+                    .attr("r", 4)
+                    .on("mouseover", function(event) {
+                        showTooltip(event, `<strong>${artist.name}</strong><br>Career start: ${artist.careerStart}`);
+                    })
+                    .on("mouseout", hideTooltip);
+                
+                g.append("circle")
+                    .attr("class", "sailor-shift-circle")
+                    .attr("cx", xScale(artist.sailorShiftStart))
+                    .attr("cy", y)
+                    .attr("r", 6)
+                    .on("mouseover", function(event) {
+                        const worksText = artist.works.slice(0, 2).join(", ") + 
+                                        (artist.works.length > 2 ? "..." : "");
+                        showTooltip(event, `<strong>${artist.name}</strong><br>
+                                          First collaboration: ${artist.sailorShiftStart}<br>
+                                          Works: ${artist.collaborations}<br>
+                                          Examples: ${worksText}`);
+                    })
+                    .on("mouseout", hideTooltip);
+                
+                if (artist.careerEnd && artist.careerEnd > sailorShiftEnd) {
+                    g.append("circle")
+                        .attr("class", "career-end-circle")
+                        .attr("cx", xScale(artist.careerEnd))
+                        .attr("cy", y)
+                        .attr("r", 3)
+                        .on("mouseover", function(event) {
+                            showTooltip(event, `<strong>${artist.name}</strong><br>Career end: ${artist.careerEnd}`);
+                        })
+                        .on("mouseout", hideTooltip);
+                }
+                
+                g.append("text")
+                    .attr("class", "artist-label")
+                    .attr("x", -8)
+                    .attr("y", y + 4)
+                    .attr("text-anchor", "end")
+                    .style("font-size", "11px")
+                    .text(artist.name.length > 15 ? artist.name.substring(0, 15) + "..." : artist.name);
+                    
+                const endX = artist.careerEnd && artist.careerEnd > sailorShiftEnd ? 
+                            xScale(artist.careerEnd) : xScale(sailorShiftEnd);
+                g.append("text")
+                    .attr("class", "artist-label")
+                    .attr("x", endX + 10)
+                    .attr("y", y + 4)
+                    .attr("text-anchor", "start")
+                    .style("fill", "#dc3545")
+                    .style("font-weight", "bold")
+                    .style("font-size", "11px")
+                    .text(artist.collaborations);
+            });
+            
+            g.append("text")
+                .attr("x", width / 2)
+                .attr("y", height + 50)
+                .attr("text-anchor", "middle")
+                .attr("class", "year-label")
+                .style("font-size", "12px")
+                .text("Year");
+                
+            g.append("text")
+                .attr("x", -margin.left + 10)
+                .attr("y", -5)
+                .attr("class", "artist-label")
+                .style("font-size", "12px")
+                .text("Collaborators");
+                
+                g.append("text")
+                    .attr("x", width + 10)
+                    .attr("y", -5)
+                    .attr("class", "artist-label")
+                    .style("font-size", "12px")
+                    .style("fill", "#dc3545")
+                    .text("Works");
+        }
+
+        function updateTimelineStats() {
+            const totalCollaborators = collaborationData.length;
+            const totalWorks = collaborationData.reduce((sum, artist) => sum + artist.collaborations, 0);
+            
+            document.getElementById("total-collaborators").textContent = totalCollaborators;
+            document.getElementById("total-works").textContent = totalWorks;
+        }
+        
+        // ===============================================
+        // SECCIÓN 2: INFLUENCE CHART
+        // ===============================================
+        
+        const influenceMargin = {top: 20, right: 350, bottom: 60, left: 60};
+        const influenceWidth = 720 - influenceMargin.left - influenceMargin.right;
+        const influenceHeight = 500 - influenceMargin.top - influenceMargin.bottom;
+        
+        const influenceSvg = d3.select("#influence-chart")
+            .attr("width", influenceWidth + influenceMargin.left + influenceMargin.right)
+            .attr("height", influenceHeight + influenceMargin.top + influenceMargin.bottom);
+        
+        const influenceG = influenceSvg.append("g")
+            .attr("transform", `translate(${influenceMargin.left},${influenceMargin.top})`);
+        
+        let influenceData = [];
+        let hiddenPersons = new Set();
+        let filteredByInfluence = new Set();
+        let allPersonData = new Map();
+        let currentHighlighted = null;
+
+        function getColorByInfluence(maxInfluence) {
+            if (maxInfluence === 1) return '#3498db';
+            else if (maxInfluence === 2) return '#f39c12';
+            else if (maxInfluence === 3) return '#e74c3c';
+            else return maxInfluence > 5 ? '#8e44ad' : '#e74c3c';
+        }
+
+        async function loadInfluenceData() {
+            try {
+                const response = await fetch('/api/influence-data');
+                const data = await response.json();
+                
+                document.getElementById('influence-loading').style.display = 'none';
+                
+                if (data.length === 0) {
+                    influenceG.append("text")
+                        .attr("x", influenceWidth / 2)
+                        .attr("y", influenceHeight / 2)
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "14px")
+                        .style("fill", "#666")
+                        .text("No influence data available");
+                    return;
+                }
+                
+                createInfluenceVisualization(data);
+            } catch (error) {
+                document.getElementById('influence-loading').textContent = 'Error loading data: ' + error.message;
+            }
+        }
+        
+        function createInfluenceVisualization(data) {
+            influenceData = data;
+            const personData = d3.group(data, d => d.person);
+            allPersonData = personData;
+            
+            const personStats = new Map();
+            personData.forEach((values, person) => {
+                const maxInfluence = d3.max(values, d => d.influence_count);
+                const totalPoints = values.length;
+                personStats.set(person, { maxInfluence, totalPoints });
+            });
+            
+            const sortedPersons = Array.from(personData.keys())
+                .sort((a, b) => personStats.get(b).maxInfluence - personStats.get(a).maxInfluence);
+            
+            const xScale = d3.scaleLinear()
+                .domain(d3.extent(data, d => d.year))
+                .range([0, influenceWidth]);
+            
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.influence_count)])
+                .nice()
+                .range([influenceHeight, 0]);
+            
+            const gridX = d3.axisBottom(xScale).tickSize(-influenceHeight).tickFormat("");
+            const gridY = d3.axisLeft(yScale).tickSize(-influenceWidth).tickFormat("");
+            
+            influenceG.append("g")
+                .attr("class", "grid")
+                .attr("transform", `translate(0,${influenceHeight})`)
+                .call(gridX);
+            
+            influenceG.append("g")
+                .attr("class", "grid")
+                .call(gridY);
+            
+            influenceG.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${influenceHeight})`)
+                .call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
+            
+            influenceG.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(yScale));
+            
+            influenceG.append("text")
+                .attr("class", "axis-label")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 0 - influenceMargin.left)
+                .attr("x", 0 - (influenceHeight / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .text("Influence level");
+            
+            influenceG.append("text")
+                .attr("class", "axis-label")
+                .attr("transform", `translate(${influenceWidth / 2}, ${influenceHeight + influenceMargin.bottom - 10})`)
+                .style("text-anchor", "middle")
+                .text("Year");
+            
+            function highlightPerson(personName) {
+                currentHighlighted = personName;
+                influenceG.selectAll('.person-group')
+                    .classed('dimmed', true)
+                    .classed('highlighted', false);
+                
+                if (personName) {
+                    influenceG.select(`.person-group[data-person="${personName}"]`)
+                        .classed('dimmed', false)
+                        .classed('highlighted', true);
+                }
+            }
+            
+            function clearHighlight() {
+                currentHighlighted = null;
+                influenceG.selectAll('.person-group')
+                    .classed('dimmed', false)
+                    .classed('highlighted', false);
+            }
+            
+            const line = d3.line()
+                .x(d => xScale(d.year))
+                .y(d => yScale(d.influence_count))
+                .curve(d3.curveMonotoneX);
+            
+            sortedPersons.forEach((personName, index) => {
+                const personValues = personData.get(personName);
+                const stats = personStats.get(personName);
+                const color = getColorByInfluence(stats.maxInfluence);
+                
+                const sortedData = personValues.sort((a, b) => a.year - b.year);
+                
+                const personGroup = influenceG.append("g")
+                    .attr("class", `person-group`)
+                    .attr("data-person", personName);
+                
+                personGroup.selectAll(".lollipop-line")
+                    .data(sortedData)
+                    .enter().append("line")
+                    .attr("class", "lollipop-line")
+                    .attr("x1", d => xScale(d.year))
+                    .attr("x2", d => xScale(d.year))
+                    .attr("y1", influenceHeight)
+                    .attr("y2", d => yScale(d.influence_count))
+                    .style("stroke", color)
+                    .style("opacity", 0.5);
+                
+                if (sortedData.length > 1) {
+                    personGroup.append("path")
+                        .datum(sortedData)
+                        .attr("class", "connection-line")
+                        .attr("d", line)
+                        .style("stroke", color);
+                }
+                
+                personGroup.selectAll(".dot")
+                    .data(sortedData)
+                    .enter().append("circle")
+                    .attr("class", "dot")
+                    .attr("cx", d => xScale(d.year))
+                    .attr("cy", d => yScale(d.influence_count))
+                    .style("stroke", color)
+                    .style("fill", color)
+                    .style("fill-opacity", 0.7)
+                    .on("mouseover", function(event, d) {
+                        highlightPerson(d.person);
+                        
+                        const stats = personStats.get(d.person);
+                        showTooltip(event, `
+                            <strong>${d.person}</strong><br/>
+                            Year: ${d.year}<br/>
+                            Influence level: ${d.influence_count}<br/>
+                            Max influence: ${stats.maxInfluence}<br/>
+                        `);
+                    })
+                    .on("mouseout", function(event, d) {
+                        clearHighlight();
+                        hideTooltip();
+                    });
+            });
+            
+            // Crear leyenda con filtros y dos columnas
+            const legendContainer = influenceG.append("g")
+                .attr("class", "legend")
+                .attr("transform", `translate(${influenceWidth + 20}, 0)`);
+            
+            // Calcular altura necesaria para dos columnas
+            const itemsPerColumn = Math.ceil(sortedPersons.length / 2);
+            const legendHeight = Math.min(680, itemsPerColumn * 14 + 80);
+            
+            // Fondo de la leyenda - más ancho para cubrir ambas columnas completamente
+            legendContainer.append("rect")
+                .attr("class", "legend-container")
+                .attr("x", -10)
+                .attr("y", -10)
+                .attr("width", 320)
+                .attr("height", legendHeight)
+                .style("fill", "#f8f9fa")
+                .style("stroke", "#dee2e6")
+                .style("rx", 5);
+            
+            // Título de la leyenda
+            legendContainer.append("text")
+                .attr("class", "legend-title")
+                .attr("x", 0)
+                .attr("y", 10)
+                .text("Artists (click to hide)");
+            
+            // Área de filtros
+            const filterContainer = legendContainer.append("g")
+                .attr("class", "filter-buttons")
+                .attr("transform", "translate(0, 20)");
+            
+            filterContainer.append("rect")
+                .attr("x", -5)
+                .attr("y", -5)
+                .attr("width", 300)
+                .attr("height", 35)
+                .style("fill", "#e9ecef")
+                .style("rx", 4);
+            
+            filterContainer.append("text")
+                .attr("x", 0)
+                .attr("y", 8)
+                .style("font-size", "10px")
+                .style("font-weight", "bold")
+                .text("Show only influence level:");
+            
+            // Función para aplicar filtro de influencia
+            function applyInfluenceFilter(exactInfluence) {
+                filteredByInfluence.clear();
+                
+                if (exactInfluence === 'all') {
+                    // Mostrar todos (solo los que no están ocultos manualmente)
+                    sortedPersons.forEach(person => {
+                        if (!hiddenPersons.has(person)) {
+                            influenceG.select(`.person-group[data-person="${person}"]`).classed("hidden", false);
+                        }
+                    });
+                } else {
+                    // Mostrar solo los de influencia exacta
+                    sortedPersons.forEach(person => {
+                        const stats = personStats.get(person);
+                        if (stats.maxInfluence !== exactInfluence) {
+                            filteredByInfluence.add(person);
+                            influenceG.select(`.person-group[data-person="${person}"]`).classed("hidden", true);
+                        } else if (!hiddenPersons.has(person)) {
+                            influenceG.select(`.person-group[data-person="${person}"]`).classed("hidden", false);
+                        }
+                    });
+                }
+                
+                updateLegendVisibility();
+            }
+            
+            function updateLegendVisibility() {
+                legendItems.each(function(d) {
+                    const isManuallyHidden = hiddenPersons.has(d);
+                    const isFilteredOut = filteredByInfluence.has(d);
+                    
+                    d3.select(this)
+                        .classed("hidden", isManuallyHidden)
+                        .style("opacity", isFilteredOut ? 0.3 : 1)
+                        .style("pointer-events", isFilteredOut ? "none" : "all");
+                });
+            }
+            
+            // Crear botones de filtro
+            const filterButtons = [1, 2, 3];
+            
+            filterButtons.forEach((exactVal, i) => {
+                const btn = filterContainer.append("g")
+                    .attr("class", "filter-btn")
+                    .attr("data-filter", exactVal)
+                    .attr("transform", `translate(${140 + i * 32}, 5)`)
+                    .style("cursor", "pointer")
+                    .on("click", function() {
+                        // Actualizar botón activo
+                        filterContainer.selectAll(".filter-btn").classed("active", false);
+                        d3.select(this).classed("active", true);
+                        
+                        // Cambiar apariencia visual
+                        filterContainer.selectAll(".filter-btn rect")
+                            .style("fill", "white");
+                        filterContainer.selectAll(".filter-btn text")
+                            .style("fill", "black");
+                        
+                        d3.select(this).select("rect").style("fill", "#007bff");
+                        d3.select(this).select("text").style("fill", "white");
+                        
+                        // Aplicar filtro exacto
+                        applyInfluenceFilter(exactVal);
+                    });
+                
+                btn.append("rect")
+                    .attr("x", -12)
+                    .attr("y", -10)
+                    .attr("width", 24)
+                    .attr("height", 18)
+                    .style("fill", "white")
+                    .style("stroke", "#6c757d")
+                    .style("stroke-width", 1)
+                    .style("rx", 3);
+                
+                btn.append("text")
+                    .attr("x", 0)
+                    .attr("y", 0)
+                    .attr("text-anchor", "middle")
+                    .attr("dy", "0.35em")
+                    .style("font-size", "10px")
+                    .style("fill", "black")
+                    .text(exactVal);
+            });
+            
+            // Botón para mostrar todos
+            const showAllBtn = filterContainer.append("g")
+                .attr("class", "filter-btn active")
+                .attr("data-filter", "all")
+                .attr("transform", `translate(${140 + filterButtons.length * 32}, 5)`)
+                .style("cursor", "pointer")
+                .on("click", function() {
+                    // Actualizar botón activo
+                    filterContainer.selectAll(".filter-btn").classed("active", false);
+                    d3.select(this).classed("active", true);
+                    
+                    // Cambiar apariencia visual
+                    filterContainer.selectAll(".filter-btn rect")
+                        .style("fill", "white");
+                    filterContainer.selectAll(".filter-btn text")
+                        .style("fill", "black");
+                    
+                    d3.select(this).select("rect").style("fill", "#28a745");
+                    d3.select(this).select("text").style("fill", "white");
+                    
+                    // Mostrar todos
+                    applyInfluenceFilter('all');
+                });
+            
+            showAllBtn.append("rect")
+                .attr("x", -18)
+                .attr("y", -10)
+                .attr("width", 36)
+                .attr("height", 18)
+                .style("fill", "#28a745")
+                .style("stroke", "#6c757d")
+                .style("stroke-width", 1)
+                .style("rx", 3);
+            
+            showAllBtn.append("text")
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("text-anchor", "middle")
+                .attr("dy", "0.35em")
+                .style("font-size", "9px")
+                .style("fill", "white")
+                .text("All");
+            
+            // Crear items de leyenda en DOS COLUMNAS
+            const legendItems = legendContainer.selectAll(".legend-item")
+                .data(sortedPersons)
+                .enter().append("g")
+                .attr("class", "legend-item")
+                .attr("data-person", d => d)
+                .attr("transform", (d, i) => {
+                    // DISTRIBUCIÓN REAL EN DOS COLUMNAS
+                    if (i < itemsPerColumn) {
+                        // Primera columna (izquierda)
+                        return `translate(0, ${i * 14 + 70})`;
+                    } else {
+                        // Segunda columna (derecha) - ajustada para que quepa en el fondo
+                        return `translate(140, ${(i - itemsPerColumn) * 14 + 70})`;
+                    }
+                })
+                .style("cursor", "pointer")
+                .on("mouseover", function(event, d) {
+                    if (!hiddenPersons.has(d) && !filteredByInfluence.has(d)) {
+                        highlightPerson(d);
+                    }
+                })
+                .on("mouseout", function(event, d) {
+                    clearHighlight();
+                })
+                .on("click", function(event, d) {
+                    event.stopPropagation();
+                    
+                    if (filteredByInfluence.has(d)) return;
+                    
+                    const isHidden = hiddenPersons.has(d);
+                    
+                    if (isHidden) {
+                        hiddenPersons.delete(d);
+                        d3.select(this).classed("hidden", false);
+                        influenceG.select(`.person-group[data-person="${d}"]`).classed("hidden", false);
+                    } else {
+                        hiddenPersons.add(d);
+                        d3.select(this).classed("hidden", true);
+                        influenceG.select(`.person-group[data-person="${d}"]`).classed("hidden", true);
+                    }
+                });
+            
+            legendItems.append("rect")
+                .attr("x", 0)
+                .attr("y", -4)
+                .attr("width", 10)
+                .attr("height", 8)
+                .style("fill", d => {
+                    const stats = personStats.get(d);
+                    return getColorByInfluence(stats.maxInfluence);
+                })
+                .style("stroke", "#666")
+                .style("stroke-width", 1);
+            
+            legendItems.append("text")
+                .attr("x", 15)
+                .attr("y", 0)
+                .attr("dy", "0.35em")
+                .style("font-size", "9px")
+                .text(d => {
+                    const stats = personStats.get(d);
+                    const name = d.length > 12 ? d.substring(0, 12) + "..." : d;
+                    return `${name} (${stats.maxInfluence})`;
+                });
+        }
+        
+        // ===============================================
+        // SECCIÓN 3: NETWORK CHART
+        // ===============================================
+        
+        const networkWidth = 1200;
+        const networkHeight = 500;
+        const SAILOR_SHIFT_ID = 17255;
+        
+        const networkSvg = d3.select("#network")
+            .attr("width", networkWidth)
+            .attr("height", networkHeight);
+        
+        const networkG = networkSvg.append("g");
+        
+        const networkZoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => {
+                networkG.attr("transform", event.transform);
+            });
+        
+        networkSvg.call(networkZoom);
+        
+        let allNetworkNodes = [];
+        let allNetworkLinks = [];
+        let networkSimulation;
+        let miniSimulation;
+        let maxConnections = 1;
+        let nodeMap = new Map();
+        let currentClickedNode = null;
+        
+        const nodeRadiusScale = d3.scaleLinear().range([4, 15]);
+        
+        const miniSvg = d3.select("#miniGraphSvg");
+        const miniG = miniSvg.append("g");
+        
+        function closeMiniGraph() {
+            d3.select("#miniGraphModal").style("display", "none");
+            if (currentClickedNode) {
+                d3.select(currentClickedNode).classed("clicked", false);
+                currentClickedNode = null;
+            }
+            if (miniSimulation) miniSimulation.stop();
+        }
+        
+        async function getMiniGraphData(centerNodeId) {
+            try {
+                const response = await fetch(`/api/person-connections/${centerNodeId}`);
+                const data = await response.json();
+                return data.error ? null : data;
+            } catch (error) {
+                console.error('Error getting connections:', error);
+                return null;
+            }
+        }
+        
+        async function showMiniGraph(nodeData) {
+            const miniData = await getMiniGraphData(nodeData.id);
+            if (!miniData) return;
+            
+            d3.select("#miniGraphTitle").text(`Connections of ${nodeData.name}`);
+            d3.select("#miniGraphInfo").text(`${miniData.connected_count} direct connections`);
+            
+            miniG.selectAll("*").remove();
+            if (miniSimulation) miniSimulation.stop();
+            
+            const miniLinks = miniG.selectAll(".mini-link")
+                .data(miniData.links)
+                .enter().append("line")
+                .attr("class", d => {
+                    // Solo las conexiones directas con Sailor Shift son púrpura
+                    const connectsToSailorShift = d.source === SAILOR_SHIFT_ID || d.target === SAILOR_SHIFT_ID ||
+                        (typeof d.source === 'object' && d.source.id === SAILOR_SHIFT_ID) ||
+                        (typeof d.target === 'object' && d.target.id === SAILOR_SHIFT_ID);
+                    
+                    return connectsToSailorShift ? "mini-link sailor-connection" : "mini-link";
+                });
+            
+            const miniNodes = miniG.selectAll(".mini-node")
+                .data(miniData.nodes)
+                .enter().append("circle")
+                .attr("class", d => {
+                    let classes = "mini-node";
+                    if (d.id === SAILOR_SHIFT_ID) classes += " sailor-shift";
+                    else if (d.isCenter) classes += " center";
+                    else classes += " connected-sailor";
+                    return classes;
+                })
+                .attr("r", d => {
+                    if (d.id === SAILOR_SHIFT_ID) return 12;
+                    return d.isCenter ? 10 : 6;
+                })
+                .style("fill", d => {
+                    if (d.id === SAILOR_SHIFT_ID) return "#9b59b6";
+                    if (d.isCenter) return "#f39c12";
+                    return "#3498db";
+                })
+                .on("mouseover", function(event, d) {
+                    showTooltip(event, `
+                        <strong>${d.name}</strong><br/>
+                        <small>Type: ${d.id === SAILOR_SHIFT_ID ? '⭐ Sailor Shift' : (d.isCenter ? 'Center node' : 'Connection')}</small>
+                        ${d.id === SAILOR_SHIFT_ID ? '<br/><small style="color: #9b59b6;">🎵 Main artist</small>' : ''}
+                    `);
+                })
+                .on("mouseout", hideTooltip);
+            
+            const miniLabels = miniG.selectAll(".mini-node-label")
+                .data(miniData.nodes)
+                .enter().append("text")
+                .attr("class", "mini-node-label")
+                .text(d => d.name.length > 12 ? d.name.substring(0, 12) + "..." : d.name)
+                .style("font-weight", d => {
+                    if (d.id === SAILOR_SHIFT_ID) return "bold";
+                    return d.isCenter ? "bold" : "normal";
+                })
+                .style("fill", d => {
+                    if (d.id === SAILOR_SHIFT_ID) return "#9b59b6";
+                    if (d.isCenter) return "#f39c12";
+                    return "#2c3e50";
+                });
+            
+            const centerNode = miniData.nodes.find(n => n.isCenter);
+            const sailorShiftNode = miniData.nodes.find(n => n.id === SAILOR_SHIFT_ID);
+            
+            if (centerNode) {
+                centerNode.fx = 300; centerNode.fy = 220;
+                centerNode.x = 300; centerNode.y = 220;
+            }
+            
+            if (sailorShiftNode && !sailorShiftNode.isCenter) {
+                sailorShiftNode.fx = 300; sailorShiftNode.fy = 140;
+                sailorShiftNode.x = 300; sailorShiftNode.y = 140;
+            }
+            
+            miniSimulation = d3.forceSimulation(miniData.nodes)
+                .force("link", d3.forceLink(miniData.links).id(d => d.id).distance(80))
+                .force("charge", d3.forceManyBody().strength(-150))
+                .force("collision", d3.forceCollide().radius(15))
+                .force("radial", d3.forceRadial(100, 300, 220).strength(0.3))
+                .on("tick", () => {
+                    if (centerNode) { centerNode.x = 300; centerNode.y = 220; }
+                    if (sailorShiftNode && !sailorShiftNode.isCenter) { 
+                        sailorShiftNode.x = 300; sailorShiftNode.y = 140; 
+                    }
+                    
+                    miniLinks
+                        .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+                    
+                    miniNodes.attr("cx", d => d.x).attr("cy", d => d.y);
+                    
+                    miniLabels
+                        .attr("x", d => d.x)
+                        .attr("y", d => d.y + (d.id === SAILOR_SHIFT_ID ? 18 : (d.isCenter ? 16 : 14)));
+                });
+            
+            d3.select("#miniGraphModal").style("display", "flex");
+        }
+        
+        function filterNetworkData(nodes, links) {
+            const filteredNodes = nodes.filter(node => node.id !== SAILOR_SHIFT_ID);
+            const filteredLinks = links.filter(link => 
+                link.source !== SAILOR_SHIFT_ID && link.target !== SAILOR_SHIFT_ID &&
+                !(typeof link.source === 'object' && link.source.id === SAILOR_SHIFT_ID) &&
+                !(typeof link.target === 'object' && link.target.id === SAILOR_SHIFT_ID)
+            );
+            
+            return { nodes: filteredNodes, links: filteredLinks };
+        }
+        
+        async function loadNetworkData() {
+            try {
+                const response = await fetch('/api/sailor-shift-direct-collaborations');
+                const data = await response.json();
+                
+                const filtered = filterNetworkData(data.nodes, data.links);
+                
+                allNetworkNodes = filtered.nodes.map(d => ({...d}));
+                allNetworkLinks = filtered.links.map(d => ({...d}));
+                
+                nodeMap.clear();
+                allNetworkNodes.forEach(node => nodeMap.set(node.id, node));
+                
+                const connectionCounts = allNetworkNodes.map(d => d.connections_to_sailor || 1);
+                maxConnections = connectionCounts.length > 0 ? Math.max(...connectionCounts) : 1;
+                
+                nodeRadiusScale.domain([1, maxConnections]);
+                
+                updateNetworkStats();
+                updateNetworkVisualization();
+                
+                document.getElementById('network-loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Error loading network data:', error);
+                document.getElementById('network-loading').textContent = 'Error loading data: ' + error.message;
+            }
+        }
+        
+        function updateNetworkStats() {
+            const statsText = `${allNetworkNodes.length} collaborators (excluding Sailor Shift) | ${allNetworkLinks.length} connections`;
+            document.getElementById('network-stats').textContent = statsText;
+        }
+        
+        function updateNetworkVisualization() {
+            networkG.selectAll(".link").remove();
+            networkG.selectAll(".node").remove();
+            networkG.selectAll(".node-label").remove();
+            
+            if (networkSimulation) networkSimulation.stop();
+            
+            const links = networkG.selectAll(".link")
+                .data(allNetworkLinks)
+                .enter().append("line")
+                .attr("class", "link");
+            
+            const nodes = networkG.selectAll(".node")
+                .data(allNetworkNodes)
+                .enter().append("circle")
+                .attr("class", "node")
+                .attr("r", d => nodeRadiusScale(d.connections_to_sailor || 1))
+                .style("fill", "#3498db")
+                .on("mouseover", function(event, d) {
+                    d3.select(this).classed("highlighted", true);
+                    links.classed("highlighted", link => 
+                        link.source.id === d.id || link.target.id === d.id);
+                    
+                    showTooltip(event, `
+                        <strong>${d.name}</strong><br/>
+                        <strong>Connections to Sailor Shift:</strong> ${d.connections_to_sailor || 0}<br/>
+                        <strong>ID:</strong> ${d.id}<br/>
+                        <small>Node size = direct connections to Sailor Shift</small><br/>
+                        <small style="color: #f39c12;">Click to see connection details</small>
+                    `);
+                })
+                .on("mouseout", function(event, d) {
+                    d3.select(this).classed("highlighted", false);
+                    links.classed("highlighted", false);
+                    hideTooltip();
+                })
+                .on("click", async function(event, d) {
+                    event.stopPropagation();
+                    hideTooltip();
+                    
+                    d3.selectAll(".node").classed("clicked", false);
+                    d3.select(this).classed("clicked", true);
+                    currentClickedNode = this;
+                    
+                    await showMiniGraph(d);
+                })
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+            
+            const labels = networkG.selectAll(".node-label")
+                .data(allNetworkNodes)
+                .enter().append("text")
+                .attr("class", "node-label")
+                .text(d => d.name.length > 15 ? d.name.substring(0, 15) + "..." : d.name);
+            
+            networkSimulation = d3.forceSimulation(allNetworkNodes)
+                .force("link", d3.forceLink(allNetworkLinks).id(d => d.id).distance(80))
+                .force("charge", d3.forceManyBody().strength(-200))
+                .force("center", d3.forceCenter(networkWidth / 2, networkHeight / 2).strength(0.1))
+                .force("collision", d3.forceCollide().radius(d => nodeRadiusScale(d.connections_to_sailor || 1) + 8))
+                .force("centerAttraction", d3.forceRadial(0, networkWidth / 2, networkHeight / 2).strength(0.02))
+                .force("x", d3.forceX(networkWidth / 2).strength(0.05))
+                .force("y", d3.forceY(networkHeight / 2).strength(0.05))
+                .alphaDecay(0.01) // Menor decaimiento para simulación más estable
+                .velocityDecay(0.3)
+                .on("tick", () => {
+                    links
+                        .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+                    
+                    nodes.attr("cx", d => d.x).attr("cy", d => d.y);
+                    
+                    labels
+                        .attr("x", d => d.x)
+                        .attr("y", d => d.y + nodeRadiusScale(d.connections_to_sailor || 1) + 12);
+                });
+        }
+        
+        function dragstarted(event, d) {
+            if (!event.active) networkSimulation.alphaTarget(0.3).restart();
+            d.fx = d.x; d.fy = d.y;
+        }
+        
+        function dragged(event, d) {
+            d.fx = event.x; d.fy = event.y;
+        }
+        
+        function dragended(event, d) {
+            if (!event.active) networkSimulation.alphaTarget(0);
+            setTimeout(() => {
+                d.fx = null; d.fy = null;
+                networkSimulation.alphaTarget(0.1).restart();
+                setTimeout(() => networkSimulation.alphaTarget(0), 1000);
+            }, 500);
+        }
+        
+        // ===============================================
+        // FUNCIONES GLOBALES Y EVENT LISTENERS
+        // ===============================================
+        
+        function showTooltip(event, content) {
+            const tooltip = d3.select("#tooltip");
+            tooltip.style("opacity", 1)
+                .html(content)
+                .style("left", (event.clientX + 10) + "px")
+                .style("top", (event.clientY - 10) + "px");
+        }
+        
+        function hideTooltip() {
+            d3.select("#tooltip").style("opacity", 0);
+        }
+        
+        // Event listeners
+        d3.select("#showLabels").on("change", function() {
+            const showLabels = this.checked;
+            networkG.selectAll(".node-label").classed("visible", showLabels);
+        });
+        
+        d3.select("#miniGraphModal").on("click", function(event) {
+            if (event.target === this) closeMiniGraph();
+        });
+        
+        d3.select("#zoomIn").on("click", () => {
+            networkSvg.transition().call(networkZoom.scaleBy, 1.5);
+        });
+        
+        d3.select("#zoomOut").on("click", () => {
+            networkSvg.transition().call(networkZoom.scaleBy, 1 / 1.5);
+        });
+        
+        d3.select("#resetZoom").on("click", () => {
+            networkSvg.transition().call(networkZoom.transform, d3.zoomIdentity);
+        });
+        
+        // ===============================================
+        // INICIALIZACIÓN
+        // ===============================================
+        
+        async function initDashboard() {
+            console.log('Initializing dashboard...');
+            
+            // Cargar datos en paralelo
+            const [timelineSuccess, influenceSuccess, networkSuccess] = await Promise.all([
+                loadTimelineData(),
+                loadInfluenceData(),
+                loadNetworkData()
+            ]);
+            
+            // Crear visualizaciones si los datos se cargaron exitosamente
+            if (timelineSuccess && collaborationData.length > 0) {
+                createTimelineVisualization();
+                updateTimelineStats();
+                console.log('Timeline visualization completed');
+            } else {
+                updateTimelineStats();
+            }
+            
+            console.log('Dashboard initialization completed');
+        }
+        
+        // Inicializar cuando se carga la página
+        document.addEventListener('DOMContentLoaded', initDashboard);
+    </script>
+</body>
+</html>

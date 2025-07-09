@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborations towards Sailor Shift</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.2em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        
+        .chart-container {
+            position: relative;
+        }
+        
+        .controls {
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .control-group label {
+            font-weight: 500;
+            font-size: 14px;
+            color: #495057;
+        }
+        
+        .stats {
+            font-size: 13px;
+            color: #6c757d;
+            background-color: #e9ecef;
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+        
+        .node {
+            stroke: #2c3e50;
+            stroke-width: 2;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .node:hover {
+            stroke-width: 3;
+            filter: drop-shadow(0 0 8px rgba(52, 152, 219, 0.6));
+        }
+        
+        .node.highlighted {
+            stroke: #e74c3c;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 12px rgba(231, 76, 60, 0.8));
+        }
+        
+        .node.clicked {
+            stroke: #f39c12;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 15px rgba(243, 156, 18, 0.8));
+        }
+        
+        .link {
+            stroke: #95a5a6;
+            stroke-width: 2;
+            opacity: 0.6;
+            transition: all 0.3s ease;
+        }
+        
+        .link.highlighted {
+            stroke: #3498db;
+            stroke-width: 4;
+            opacity: 1;
+        }
+        
+        .node-label {
+            font-size: 11px;
+            font-weight: 500;
+            fill: #2c3e50;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .node-label.visible {
+            opacity: 1;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            max-width: 300px;
+            z-index: 1000;
+        }
+        
+        /* Mini-grafo modal */
+        .mini-graph-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .mini-graph-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 600px;
+            height: 500px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .mini-graph-header {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+            padding: 15px 20px;
+            font-size: 16px;
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .mini-graph-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s ease;
+        }
+        
+        .mini-graph-close:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .mini-graph-content {
+            position: relative;
+            width: 100%;
+            height: calc(100% - 60px);
+        }
+        
+        .mini-graph-svg {
+            background: #f8f9fa;
+        }
+        
+        /* Estilos para nodos del mini-grafo */
+        .mini-node {
+            stroke: #2c3e50;
+            stroke-width: 2;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .mini-node.center {
+            stroke: #f39c12;
+            stroke-width: 3;
+            filter: drop-shadow(0 0 8px rgba(243, 156, 18, 0.6));
+        }
+        
+        .mini-node.connected-sailor {
+            stroke: #3498db;
+            stroke-width: 2;
+        }
+        
+        .mini-node.sailor-shift {
+            stroke: #9b59b6;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 12px rgba(155, 89, 182, 0.8));
+        }
+        
+        .mini-node:hover {
+            stroke-width: 3;
+            filter: drop-shadow(0 0 6px rgba(52, 152, 219, 0.4));
+        }
+        
+        .mini-link {
+            stroke: #3498db;
+            stroke-width: 2;
+            opacity: 0.8;
+        }
+        
+        .mini-link.collaboration {
+            stroke: #27ae60;
+            stroke-width: 2;
+            opacity: 0.7;
+        }
+        
+        .mini-link.direct {
+            stroke: #3498db;
+            stroke-width: 2;
+            opacity: 0.9;
+        }
+        
+        .mini-link.secondary {
+            stroke: #95a5a6;
+            stroke-width: 1;
+            opacity: 0.5;
+        }
+        
+        .mini-link.sailor-connection {
+            stroke: #9b59b6;
+            stroke-width: 3;
+            opacity: 1;
+            filter: drop-shadow(0 0 4px rgba(155, 89, 182, 0.6));
+        }
+        
+        .mini-node-label {
+            font-size: 10px;
+            font-weight: 500;
+            fill: #2c3e50;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            pointer-events: none;
+        }
+        
+        .mini-graph-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #2c3e50;
+        }
+        
+        .legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 12px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .legend h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 13px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            gap: 8px;
+        }
+        
+        .legend-sample {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            border: 2px solid #2c3e50;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 100px;
+            font-size: 18px;
+            color: #6c757d;
+        }
+        
+        .zoom-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(255,255,255,0.9);
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #495057;
+            transition: all 0.2s ease;
+        }
+        
+        .zoom-btn:hover {
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        svg {
+            background-color: #fbfcfd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="control-group">
+                <label for="showLabels">
+                    <input type="checkbox" id="showLabels"> Show names
+                </label>
+            </div>
+            
+            <div class="stats" id="stats">
+                Loading statistics...
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div id="loading" class="loading">Loading collaboration network...</div>
+            <svg id="network"></svg>
+            
+            <div class="zoom-controls">
+                <button class="zoom-btn" id="zoomIn">+</button>
+                <button class="zoom-btn" id="zoomOut">−</button>
+                <button class="zoom-btn" id="resetZoom">⌂</button>
+            </div>
+            
+            <div class="legend">
+                <h4>Network of Collaborators</h4>
+                <div class="legend-item">
+                    <span style="color: #3498db; font-weight: bold;">●</span>
+                    <span>Connected with Sailor Shift</span>
+                </div>
+                <div class="legend-item">
+                    <span style="color: #666;">—</span>
+                    <span>Connections between collaborators</span>
+                </div>
+                <div class="legend-item" style="margin-top: 8px; font-style: italic; color: #666; font-size: 11px;">
+                    <span>Size = Sailor Shift connections</span>
+                </div>
+                <div class="legend-item" style="margin-top: 5px; font-weight: bold; color: #f39c12; font-size: 11px;">
+                    <span>Click on a node to see its mini-graph</span>
+                </div>
+            </div>
+            
+            <div class="tooltip"></div>
+        </div>
+    </div>
+
+    <!-- Modal del mini-grafo -->
+    <div class="mini-graph-modal" id="miniGraphModal">
+        <div class="mini-graph-container">
+            <div class="mini-graph-header">
+                <span id="miniGraphTitle">Conexiones de [Nodo]</span>
+                <button class="mini-graph-close" onclick="closeMiniGraph()">×</button>
+            </div>
+            <div class="mini-graph-content">
+                <svg id="miniGraphSvg" class="mini-graph-svg" width="600" height="440"></svg>
+                <div class="mini-graph-info" id="miniGraphInfo">
+                    Conexiones: 0
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuración del grafo principal
+        const width = 1360;
+        const height = 800;
+        const SAILOR_SHIFT_ID = 17255; // ID de Sailor Shift para filtrar
+        
+        // Configuración del mini-grafo
+        const miniWidth = 600;
+        const miniHeight = 440;
+        
+        // Crear SVG principal
+        const svg = d3.select("#network")
+            .attr("width", width)
+            .attr("height", height);
+        
+        // Grupo principal con zoom
+        const g = svg.append("g");
+        
+        // Configurar zoom
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            });
+        
+        svg.call(zoom);
+        
+        // SVG del mini-grafo
+        const miniSvg = d3.select("#miniGraphSvg");
+        const miniG = miniSvg.append("g");
+        
+        // Tooltips
+        const tooltip = d3.select(".tooltip");
+        
+        // Variables globales
+        let allNodes = [];
+        let allLinks = [];
+        let filteredNodes = [];
+        let filteredLinks = [];
+        let simulation;
+        let miniSimulation;
+        let maxConnections = 1;
+        let nodeMap = new Map(); // Para búsqueda rápida de nodos
+        let currentClickedNode = null;
+        
+        // Controles
+        const showLabelsCheckbox = d3.select("#showLabels");
+        const statsDiv = d3.select("#stats");
+        
+        // Escalas
+        const nodeRadiusScale = d3.scaleLinear()
+            .range([6, 25]);
+        
+        // Función para cerrar mini-grafo
+        function closeMiniGraph() {
+            d3.select("#miniGraphModal").style("display", "none");
+            // Quitar resaltado del nodo clickeado
+            if (currentClickedNode) {
+                d3.select(currentClickedNode).classed("clicked", false);
+                currentClickedNode = null;
+            }
+            // Parar simulación del mini-grafo
+            if (miniSimulation) {
+                miniSimulation.stop();
+            }
+        }
+        
+        // Función para obtener conexiones desde el backend
+        async function getMiniGraphData(centerNodeId) {
+            try {
+                const response = await fetch(`/api/person-connections/${centerNodeId}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    return null;
+                }
+                
+                console.log('Datos del mini-grafo desde backend:', data);
+                return data;
+                
+            } catch (error) {
+                console.error('Error obteniendo conexiones:', error);
+                return null;
+            }
+        }
+        
+        // Función para mostrar mini-grafo
+        async function showMiniGraph(nodeData) {
+            const miniData = await getMiniGraphData(nodeData.id);
+            if (!miniData) {
+                console.error('No se pudieron obtener los datos del mini-grafo');
+                return;
+            }
+            
+            // Actualizar título y info
+            d3.select("#miniGraphTitle").text(`Connections of ${nodeData.name}`);
+            d3.select("#miniGraphInfo").text(`${miniData.connected_count} direct connections`);
+            
+            // Limpiar mini-SVG
+            miniG.selectAll("*").remove();
+            
+            // Parar simulación anterior
+            if (miniSimulation) miniSimulation.stop();
+            
+            // Crear enlaces del mini-grafo
+            const miniLinks = miniG.selectAll(".mini-link")
+                .data(miniData.links)
+                .enter().append("line")
+                .attr("class", d => {
+                    let classes = `mini-link ${d.type}`;
+                    // Si el enlace conecta con Sailor Shift, agregar clase especial
+                    if (d.source === SAILOR_SHIFT_ID || d.target === SAILOR_SHIFT_ID ||
+                        (typeof d.source === 'object' && d.source.id === SAILOR_SHIFT_ID) ||
+                        (typeof d.target === 'object' && d.target.id === SAILOR_SHIFT_ID)) {
+                        classes += " sailor-connection";
+                    }
+                    return classes;
+                })
+                .style("stroke-width", d => {
+                    // Enlaces con Sailor Shift más gruesos
+                    if (d.source === SAILOR_SHIFT_ID || d.target === SAILOR_SHIFT_ID ||
+                        (typeof d.source === 'object' && d.source.id === SAILOR_SHIFT_ID) ||
+                        (typeof d.target === 'object' && d.target.id === SAILOR_SHIFT_ID)) {
+                        return 3;
+                    }
+                    return d.type === "secondary" ? 1 : 2;
+                });
+            
+            // Crear nodos del mini-grafo
+            const miniNodes = miniG.selectAll(".mini-node")
+                .data(miniData.nodes)
+                .enter().append("circle")
+                .attr("class", d => {
+                    let classes = "mini-node";
+                    if (d.id === SAILOR_SHIFT_ID) {
+                        classes += " sailor-shift";
+                    } else if (d.isCenter) {
+                        classes += " center";
+                    } else {
+                        classes += " connected-sailor";
+                    }
+                    return classes;
+                })
+                .attr("r", d => {
+                    if (d.id === SAILOR_SHIFT_ID) return 15; // Sailor Shift más grande
+                    return d.isCenter ? 12 : 8;
+                })
+                .style("fill", d => {
+                    if (d.id === SAILOR_SHIFT_ID) return "#9b59b6"; // Púrpura para Sailor Shift
+                    if (d.isCenter) return "#f39c12"; // Dorado para el centro
+                    return "#3498db"; // Celeste para todos los demás
+                })
+                .on("mouseover", function(event, d) {
+                    d3.select(this).style("stroke-width", "3");
+                    
+                    // Mostrar tooltip simple
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", 1);
+                    tooltip.html(`
+                        <strong>${d.name}</strong><br/>
+                        <small>Tipo: ${d.id === SAILOR_SHIFT_ID ? '⭐ Sailor Shift' : (d.isCenter ? 'Nodo central' : 'Conexión')}</small>
+                        ${d.id === SAILOR_SHIFT_ID ? '<br/><small style="color: #9b59b6;">🎵 Artista principal</small>' : ''}
+                    `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    d3.select(this).style("stroke-width", d => d.isCenter ? "3" : "2");
+                    tooltip.style("opacity", 0);
+                });
+            
+            // Crear etiquetas del mini-grafo
+            const miniLabels = miniG.selectAll(".mini-node-label")
+                .data(miniData.nodes)
+                .enter().append("text")
+                .attr("class", "mini-node-label")
+                .text(d => d.name.length > 12 ? d.name.substring(0, 12) + "..." : d.name)
+                .style("font-weight", d => {
+                    if (d.id === SAILOR_SHIFT_ID) return "bold";
+                    return d.isCenter ? "bold" : "normal";
+                })
+                .style("fill", d => {
+                    if (d.id === SAILOR_SHIFT_ID) return "#9b59b6"; // Púrpura para Sailor Shift
+                    if (d.isCenter) return "#f39c12"; // Dorado para centro
+                    return "#2c3e50"; // Negro para otros
+                });
+            
+            // Encontrar el nodo central y Sailor Shift si está presente
+            const centerNode = miniData.nodes.find(n => n.isCenter);
+            const sailorShiftNode = miniData.nodes.find(n => n.id === SAILOR_SHIFT_ID);
+            
+            // Posicionar el nodo central en el centro fijo
+            if (centerNode) {
+                centerNode.fx = miniWidth / 2;
+                centerNode.fy = miniHeight / 2;
+                centerNode.x = miniWidth / 2;
+                centerNode.y = miniHeight / 2;
+            }
+            
+            // Si Sailor Shift está presente y NO es el centro, posicionarlo en una posición destacada
+            if (sailorShiftNode && !sailorShiftNode.isCenter) {
+                sailorShiftNode.fx = miniWidth / 2;
+                sailorShiftNode.fy = miniHeight / 2 - 80; // Un poco arriba del centro
+                sailorShiftNode.x = miniWidth / 2;
+                sailorShiftNode.y = miniHeight / 2 - 80;
+            }
+            
+            // Crear simulación del mini-grafo con fuerzas optimizadas
+            miniSimulation = d3.forceSimulation(miniData.nodes)
+                .force("link", d3.forceLink(miniData.links).id(d => d.id).distance(d => {
+                    // Enlaces desde el centro son más cortos
+                    if (d.type === "secondary") return 60;
+                    return 100;
+                }))
+                .force("charge", d3.forceManyBody().strength(d => {
+                    // Fuerzas especiales para nodos importantes
+                    if (d.id === SAILOR_SHIFT_ID) return -300; // Sailor Shift repele más
+                    if (d.isCenter) return -100; // El nodo central no repele tanto
+                    return -200; // Otros nodos
+                }))
+                .force("collision", d3.forceCollide().radius(d => {
+                    if (d.id === SAILOR_SHIFT_ID) return 25; // Sailor Shift más espacio
+                    return d.isCenter ? 20 : 15;
+                }))
+                // Fuerza radial para mantener los nodos conectados alrededor del centro
+                .force("radial", d3.forceRadial(120, miniWidth / 2, miniHeight / 2).strength(d => d.isCenter ? 0 : 0.3))
+                .alphaDecay(0.05)
+                .velocityDecay(0.6)
+                .on("tick", () => {
+                    // Asegurar que el nodo central se mantenga en el centro
+                    if (centerNode) {
+                        centerNode.x = miniWidth / 2;
+                        centerNode.y = miniHeight / 2;
+                    }
+                    
+                    // Mantener Sailor Shift en su posición fija si está presente y no es el centro
+                    if (sailorShiftNode && !sailorShiftNode.isCenter) {
+                        sailorShiftNode.x = miniWidth / 2;
+                        sailorShiftNode.y = miniHeight / 2 - 80;
+                    }
+                    
+                    miniLinks
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+                    
+                    miniNodes
+                        .attr("cx", d => d.x)
+                        .attr("cy", d => d.y);
+                    
+                    miniLabels
+                        .attr("x", d => d.x)
+                        .attr("y", d => {
+                            if (d.id === SAILOR_SHIFT_ID) return d.y + 22; // Sailor Shift más abajo
+                            return d.y + (d.isCenter ? 20 : 16);
+                        });
+                });
+            
+            // Mostrar modal
+            d3.select("#miniGraphModal").style("display", "flex");
+        }
+        
+        // Función para filtrar datos (excluir Sailor Shift)
+        function filterData(nodes, links) {
+            console.log('Datos originales recibidos:');
+            console.log('- Nodos:', nodes.length);
+            console.log('- Enlaces:', links.length);
+            
+            // Filtrar nodos: excluir Sailor Shift (ID 17255)
+            const filteredNodes = nodes.filter(node => {
+                const isSailorShift = node.id === SAILOR_SHIFT_ID;
+                if (isSailorShift) {
+                    console.log('🚫 Excluyendo Sailor Shift:', node);
+                }
+                return !isSailorShift;
+            });
+            
+            // Filtrar enlaces: excluir cualquier enlace que conecte con Sailor Shift
+            const filteredLinks = links.filter(link => {
+                const connectsToSailorShift = link.source === SAILOR_SHIFT_ID || 
+                                           link.target === SAILOR_SHIFT_ID ||
+                                           (typeof link.source === 'object' && link.source.id === SAILOR_SHIFT_ID) ||
+                                           (typeof link.target === 'object' && link.target.id === SAILOR_SHIFT_ID);
+                
+                if (connectsToSailorShift) {
+                    console.log('🚫 Excluyendo enlace con Sailor Shift:', link);
+                }
+                return !connectsToSailorShift;
+            });
+            
+            console.log('Datos filtrados:');
+            console.log('- Nodos (sin Sailor Shift):', filteredNodes.length);
+            console.log('- Enlaces (sin conexiones a Sailor Shift):', filteredLinks.length);
+            
+            return {
+                nodes: filteredNodes,
+                links: filteredLinks
+            };
+        }
+        
+        // Cargar datos
+        async function loadData() {
+            try {
+                const response = await fetch('/api/sailor-shift-direct-collaborations');
+                const data = await response.json();
+                
+                console.log('Datos del backend:', data);
+                
+                // Aplicar filtro para excluir Sailor Shift
+                const filtered = filterData(data.nodes, data.links);
+                
+                allNodes = filtered.nodes.map(d => ({...d}));
+                allLinks = filtered.links.map(d => ({...d}));
+                
+                // Crear mapa de nodos para búsqueda rápida
+                nodeMap.clear();
+                allNodes.forEach(node => {
+                    nodeMap.set(node.id, node);
+                });
+                
+                // console.log(`✅ Nodos finales: ${allNodes.length}`);
+                // console.log(`✅ Enlaces finales: ${allLinks.length}`);
+                
+                // Verificar que NO hay Sailor Shift en los datos filtrados
+                const sailorShiftFound = allNodes.find(n => n.id === SAILOR_SHIFT_ID);
+                // if (sailorShiftFound) {
+                //     console.error('❌ ERROR: Sailor Shift aún está presente después del filtro!');
+                // } else {
+                //     console.log('✅ Confirmado: Sailor Shift excluido exitosamente');
+                // }
+                
+                // Calcular máximo de conexiones (de los nodos restantes)
+                const connectionCounts = allNodes.map(d => d.connections_to_sailor || 1);
+                maxConnections = connectionCounts.length > 0 ? Math.max(...connectionCounts) : 1;
+                
+                // Configurar escalas
+                nodeRadiusScale.domain([1, maxConnections]);
+                
+                // Mostrar estadísticas
+                updateStats();
+                
+                // Crear visualización
+                updateVisualization();
+                
+                document.getElementById('loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Error cargando datos:', error);
+                document.getElementById('loading').textContent = '❌ Error cargando datos: ' + error.message;
+            }
+        }
+        
+        // Actualizar estadísticas
+        function updateStats() {
+            const sailorShiftExcluded = allNodes.length > 0 ? ' (excluding Sailor Shift)' : '';
+            statsDiv.text(`${allNodes.length} collaborators ${sailorShiftExcluded} | ${allLinks.length} connections between them`);
+        }
+        
+        // Crear/actualizar visualización
+        function updateVisualization() {
+            // Limpiar elementos existentes
+            g.selectAll(".link").remove();
+            g.selectAll(".node").remove();
+            g.selectAll(".node-label").remove();
+            
+            // Parar simulación anterior
+            if (simulation) simulation.stop();
+            
+            // Enlaces (ya filtrados, sin Sailor Shift)
+            const links = g.selectAll(".link")
+                .data(allLinks)
+                .enter().append("line")
+                .attr("class", "link")
+                .style("stroke-width", 2);
+            
+            // Nodos (ya filtrados, sin Sailor Shift)
+            const nodes = g.selectAll(".node")
+                .data(allNodes)
+                .enter().append("circle")
+                .attr("class", "node")
+                .attr("r", d => nodeRadiusScale(d.connections_to_sailor || 1))
+                .style("fill", "#3498db")
+                .on("mouseover", function(event, d) {
+                    // Resaltar nodo y conexiones
+                    d3.select(this).classed("highlighted", true);
+                    
+                    // Resaltar enlaces conectados
+                    links.classed("highlighted", link => 
+                        link.source.id === d.id || link.target.id === d.id);
+                    
+                    // Mostrar tooltip
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", 1);
+                    tooltip.html(`
+                        <strong>${d.name}</strong><br/>
+                        <strong>Connections to Sailor Shift:</strong> ${d.connections_to_sailor || 0}<br/>
+                        <strong>ID:</strong> ${d.id}<br/>
+                        <small>Node size = number of direct connections to Sailor Shift</small><br/>
+                        <small style="color: #f39c12;">Click to see mini-graph of connections</small>
+                    `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function(event, d) {
+                    // Quitar resaltado
+                    d3.select(this).classed("highlighted", false);
+                    links.classed("highlighted", false);
+                    
+                    // Ocultar tooltip
+                    tooltip.transition()
+                        .duration(300)
+                        .style("opacity", 0);
+                })
+                .on("click", async function(event, d) {
+                    event.stopPropagation();
+                    
+                    // Ocultar tooltip de hover
+                    tooltip.style("opacity", 0);
+                    
+                    // Quitar resaltado previo
+                    d3.selectAll(".node").classed("clicked", false);
+                    
+                    // Resaltar nodo clickeado
+                    d3.select(this).classed("clicked", true);
+                    currentClickedNode = this;
+                    
+                    // Mostrar mini-grafo
+                    await showMiniGraph(d);
+                })
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+            
+            // Etiquetas de nodos (ya filtrados, sin Sailor Shift)
+            const labels = g.selectAll(".node-label")
+                .data(allNodes)
+                .enter().append("text")
+                .attr("class", "node-label")
+                .text(d => d.name.length > 15 ? d.name.substring(0, 15) + "..." : d.name);
+            
+            // Crear simulación de fuerzas
+            simulation = d3.forceSimulation(allNodes)
+                .force("link", d3.forceLink(allLinks).id(d => d.id).distance(80))
+                .force("charge", d3.forceManyBody().strength(-200))
+                .force("center", d3.forceCenter(width / 2, height / 2).strength(0.1))
+                .force("collision", d3.forceCollide().radius(d => nodeRadiusScale(d.connections_to_sailor || 1) + 8))
+                // Fuerza de atracción hacia el centro más fuerte
+                .force("centerAttraction", d3.forceRadial(0, width / 2, height / 2).strength(0.02))
+                // Fuerza de posicionamiento en X e Y hacia el centro
+                .force("x", d3.forceX(width / 2).strength(0.05))
+                .force("y", d3.forceY(height / 2).strength(0.05))
+                .alphaDecay(0.01) // Menor decaimiento para simulación más estable
+                .velocityDecay(0.3) // Mayor amortiguación para movimientos más suaves
+                .on("tick", () => {
+                    links
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+                    
+                    nodes
+                        .attr("cx", d => d.x)
+                        .attr("cy", d => d.y);
+                    
+                    labels
+                        .attr("x", d => d.x)
+                        .attr("y", d => d.y + nodeRadiusScale(d.connections_to_sailor || 1) + 18);
+                });
+        }
+        
+        // Funciones de arrastre
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+        
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+        
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            // Liberar las posiciones fijas después de un breve delay
+            // para permitir que las fuerzas de centrado actúen
+            setTimeout(() => {
+                d.fx = null;
+                d.fy = null;
+                // Reiniciar ligeramente la simulación para recentrar
+                simulation.alphaTarget(0.1).restart();
+                setTimeout(() => simulation.alphaTarget(0), 1000);
+            }, 500);
+        }
+        
+        // Event listeners para controles
+        showLabelsCheckbox.on("change", function() {
+            const showLabels = this.checked;
+            g.selectAll(".node-label").classed("visible", showLabels);
+        });
+        
+        // Cerrar mini-grafo al hacer click fuera del modal
+        d3.select("#miniGraphModal").on("click", function(event) {
+            if (event.target === this) {
+                closeMiniGraph();
+            }
+        });
+        
+        // Controles de zoom
+        d3.select("#zoomIn").on("click", () => {
+            svg.transition().call(zoom.scaleBy, 1.5);
+        });
+        
+        d3.select("#zoomOut").on("click", () => {
+            svg.transition().call(zoom.scaleBy, 1 / 1.5);
+        });
+        
+        d3.select("#resetZoom").on("click", () => {
+            svg.transition().call(zoom.transform, d3.zoomIdentity);
+        });
+        
+        // Inicializar
+        loadData();
+    </script>
+</body>
+</html>

@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Influencia sobre Sailor Shift</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .chart-container {
+            margin: 20px 0;
+        }
+        
+        .axis {
+            font-size: 12px;
+        }
+        
+        .axis-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .person-group {
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+        
+        .person-group.highlighted {
+            opacity: 1;
+        }
+        
+        .person-group.dimmed {
+            opacity: 0.2;
+        }
+        
+        .person-group.hidden {
+            display: none;
+        }
+        
+        .lollipop-line {
+            stroke-width: 2;
+            transition: stroke-width 0.3s;
+        }
+        
+        .lollipop-line.highlighted {
+            stroke-width: 4;
+        }
+        
+        .dot {
+            stroke-width: 3;
+            r: 6;
+            cursor: pointer;
+            transition: r 0.3s;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+        }
+        
+        .dot:hover, .dot.highlighted {
+            r: 10;
+            stroke-width: 4;
+        }
+        
+        .connection-line {
+            fill: none;
+            stroke-width: 2;
+            opacity: 0.6;
+            stroke-dasharray: 3,3;
+            transition: stroke-width 0.3s;
+        }
+        
+        .connection-line.highlighted {
+            stroke-width: 3;
+            opacity: 0.8;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            max-width: 250px;
+        }
+        
+        .legend {
+            font-size: 11px;
+        }
+        
+        .legend-item {
+            cursor: pointer;
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+        
+        .legend-item:hover {
+            opacity: 0.7;
+        }
+        
+        .legend-item.hidden {
+            opacity: 0.4;
+            text-decoration: line-through;
+        }
+        
+        .legend-item.highlighted {
+            font-weight: bold;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 18px;
+            color: #666;
+        }
+        
+        .grid line {
+            stroke: #e0e0e0;
+            stroke-dasharray: 2,2;
+        }
+        
+        .grid path {
+            stroke-width: 0;
+        }
+        
+        .legend-container {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .legend-title {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 8px;
+            color: #495057;
+        }
+        
+        .filter-buttons {
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+        }
+        
+        .filter-btn {
+            font-size: 10px;
+            padding: 3px 6px;
+            margin: 2px;
+            border: 1px solid #6c757d;
+            background-color: white;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        
+        .filter-btn:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .filter-btn.active {
+            background-color: #007bff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="chart-container">
+            <div id="loading" class="loading">Cargando datos...</div>
+            <svg id="chart"></svg>
+        </div>
+        
+        <div class="tooltip"></div>
+    </div>
+
+    <script>
+        // Configuración del gráfico
+        const margin = {top: 20, right: 410, bottom: 60, left: 60};
+        const width = 1200 - margin.left - margin.right;
+        const height = 600 - margin.top - margin.bottom;
+        
+        // Crear SVG
+        const svg = d3.select("#chart")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom);
+        
+        const g = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+        
+        // Tooltip
+        const tooltip = d3.select(".tooltip");
+        
+        // Función para obtener color basado en influencia
+        function getColorByInfluence(maxInfluence) {
+            if (maxInfluence === 1) {
+                return '#3498db'; // Azul - frío/bajo impacto
+            } else if (maxInfluence === 2) {
+                return '#f39c12'; // Naranja - tibio/impacto medio
+            } else if (maxInfluence === 3) {
+                return '#e74c3c'; // Rojo - caliente/alto impacto
+            } else {
+                // Para influencias mayores a 3, usar una escala más intensa
+                return maxInfluence > 5 ? '#8e44ad' : '#e74c3c'; // Púrpura para muy alta influencia
+            }
+        }
+        
+        // Variables para mantener el estado
+        let hiddenPersons = new Set();
+        let filteredByInfluence = new Set();
+        let allPersonData = new Map();
+        let currentHighlighted = null;
+        let currentMinInfluence = 1;
+        
+        // Función para cargar y procesar datos
+        async function loadData() {
+            try {
+                const response = await fetch('/api/influence-data');
+                const data = await response.json();
+                
+                document.getElementById('loading').style.display = 'none';
+                
+                if (data.length === 0) {
+                    g.append("text")
+                        .attr("x", width / 2)
+                        .attr("y", height / 2)
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "16px")
+                        .style("fill", "#666")
+                        .text("No hay datos de influencia disponibles");
+                    return;
+                }
+                
+                createVisualization(data);
+            } catch (error) {
+                document.getElementById('loading').textContent = 'Error cargando datos: ' + error.message;
+            }
+        }
+        
+        function createVisualization(data) {
+            // Procesar datos para agrupar por persona
+            const personData = d3.group(data, d => d.person);
+            allPersonData = personData;
+            
+            // Calcular estadísticas por persona
+            const personStats = new Map();
+            personData.forEach((values, person) => {
+                const maxInfluence = d3.max(values, d => d.influence_count);
+                const totalPoints = values.length;
+                
+                personStats.set(person, {
+                    maxInfluence,
+                    totalPoints
+                });
+            });
+            
+            // Ordenar personas por influencia máxima descendente
+            const sortedPersons = Array.from(personData.keys())
+                .sort((a, b) => personStats.get(b).maxInfluence - personStats.get(a).maxInfluence);
+            
+            // Crear escalas
+            const xScale = d3.scaleLinear()
+                .domain(d3.extent(data, d => d.year))
+                .range([0, width]);
+            
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.influence_count)])
+                .nice()
+                .range([height, 0]);
+            
+            // Crear grid
+            const gridX = d3.axisBottom(xScale)
+                .tickSize(-height)
+                .tickFormat("");
+            
+            const gridY = d3.axisLeft(yScale)
+                .tickSize(-width)
+                .tickFormat("");
+            
+            g.append("g")
+                .attr("class", "grid")
+                .attr("transform", `translate(0,${height})`)
+                .call(gridX);
+            
+            g.append("g")
+                .attr("class", "grid")
+                .call(gridY);
+            
+            // Crear ejes
+            g.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
+            
+            g.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(yScale));
+            
+            // Etiquetas de ejes
+            g.append("text")
+                .attr("class", "axis-label")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 0 - margin.left)
+                .attr("x", 0 - (height / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .text("Influence level");
+            
+            g.append("text")
+                .attr("class", "axis-label")
+                .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
+                .style("text-anchor", "middle")
+                .text("Year");
+            
+            // Funciones de hover sin interferir con clicks
+            function highlightPerson(personName) {
+                currentHighlighted = personName;
+                
+                // Atenuar todos los grupos
+                g.selectAll('.person-group')
+                    .classed('dimmed', true)
+                    .classed('highlighted', false);
+                
+                // Resaltar el grupo seleccionado
+                if (personName) {
+                    g.select(`.person-group[data-person="${personName}"]`)
+                        .classed('dimmed', false)
+                        .classed('highlighted', true);
+                    
+                    // Resaltar en la leyenda
+                    d3.selectAll('.legend-item')
+                        .classed('highlighted', false);
+                    d3.select(`.legend-item[data-person="${personName}"]`)
+                        .classed('highlighted', true);
+                }
+            }
+            
+            function clearHighlight() {
+                currentHighlighted = null;
+                
+                g.selectAll('.person-group')
+                    .classed('dimmed', false)
+                    .classed('highlighted', false);
+                
+                d3.selectAll('.legend-item')
+                    .classed('highlighted', false);
+            }
+            
+            // Crear línea para conectar puntos temporalmente
+            const line = d3.line()
+                .x(d => xScale(d.year))
+                .y(d => yScale(d.influence_count))
+                .curve(d3.curveMonotoneX);
+            
+            // Dibujar elementos para cada persona
+            sortedPersons.forEach((personName, index) => {
+                const personValues = personData.get(personName);
+                const stats = personStats.get(personName);
+                const color = getColorByInfluence(stats.maxInfluence); // Usar color basado en influencia
+                
+                // Ordenar por año
+                const sortedData = personValues.sort((a, b) => a.year - b.year);
+                
+                // Crear grupo para esta persona
+                const personGroup = g.append("g")
+                    .attr("class", `person-group`)
+                    .attr("data-person", personName);
+                
+                // Líneas lollipop (de cada punto al eje X)
+                personGroup.selectAll(".lollipop-line")
+                    .data(sortedData)
+                    .enter().append("line")
+                    .attr("class", "lollipop-line")
+                    .attr("x1", d => xScale(d.year))
+                    .attr("x2", d => xScale(d.year))
+                    .attr("y1", height)
+                    .attr("y2", d => yScale(d.influence_count))
+                    .style("stroke", color)
+                    .style("opacity", 0.5);
+                
+                // Línea conectora entre puntos (si hay múltiples puntos)
+                if (sortedData.length > 1) {
+                    personGroup.append("path")
+                        .datum(sortedData)
+                        .attr("class", "connection-line")
+                        .attr("d", line)
+                        .style("stroke", color);
+                }
+                
+                // Puntos
+                personGroup.selectAll(".dot")
+                    .data(sortedData)
+                    .enter().append("circle")
+                    .attr("class", "dot")
+                    .attr("cx", d => xScale(d.year))
+                    .attr("cy", d => yScale(d.influence_count))
+                    .style("stroke", color)
+                    .style("fill", color)
+                    .style("fill-opacity", 0.7)
+                    .on("mouseover", function(event, d) {
+                        highlightPerson(d.person);
+                        
+                        const stats = personStats.get(d.person);
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", .9);
+                        tooltip.html(`
+                            <strong>${d.person}</strong><br/>
+                            Year: ${d.year}<br/>
+                            Influence level: ${d.influence_count}<br/>
+                            Maximum influence: ${stats.maxInfluence}<br/>
+                        `)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    })
+                    .on("mouseout", function(event, d) {
+                        clearHighlight();
+                        tooltip.transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                    });
+            });
+            
+            // Crear leyenda con filtros y dos columnas
+            const legendContainer = g.append("g")
+                .attr("class", "legend")
+                .attr("transform", `translate(${width + 20}, 0)`);
+            
+            // Calcular altura necesaria para dos columnas
+            const itemsPerColumn = Math.ceil(sortedPersons.length / 2);
+            const legendHeight = Math.min(680, itemsPerColumn * 14 + 80);
+            
+            // Fondo de la leyenda - más ancho para cubrir ambas columnas completamente
+            legendContainer.append("rect")
+                .attr("class", "legend-container")
+                .attr("x", -10)
+                .attr("y", -10)
+                .attr("width", 380)
+                .attr("height", legendHeight)
+                .style("fill", "#f8f9fa")
+                .style("stroke", "#dee2e6")
+                .style("rx", 5);
+            
+            // Título de la leyenda
+            legendContainer.append("text")
+                .attr("class", "legend-title")
+                .attr("x", 0)
+                .attr("y", 10)
+                .text("Artists (click to hide)");
+            
+            // Leyenda de colores
+            const colorLegend = legendContainer.append("g")
+                .attr("transform", "translate(200, 0)");
+            
+            const colorInfo = [
+                {level: 1, color: '#3498db', label: 'Inf. 1'},
+                {level: 2, color: '#f39c12', label: 'Inf. 2'},
+                {level: 3, color: '#e74c3c', label: 'Inf. 3+'}
+            ];
+            
+            // colorInfo.forEach((info, i) => {
+            //     const colorItem = colorLegend.append("g")
+            //         .attr("transform", `translate(0, ${i * 15 + 5})`);
+                
+            //     colorItem.append("rect")
+            //         .attr("x", 0)
+            //         .attr("y", 0)
+            //         .attr("width", 8)
+            //         .attr("height", 8)
+            //         .style("fill", info.color)
+            //         .style("stroke", "#666")
+            //         .style("stroke-width", 1);
+                
+            //     colorItem.append("text")
+            //         .attr("x", 12)
+            //         .attr("y", 6)
+            //         .style("font-size", "8px")
+            //         .style("fill", "#666")
+            //         .text(info.label);
+            // });
+            
+            // Área de filtros
+            const filterContainer = legendContainer.append("g")
+                .attr("class", "filter-buttons")
+                .attr("transform", "translate(0, 20)");
+            
+            filterContainer.append("rect")
+                .attr("x", -5)
+                .attr("y", -5)
+                .attr("width", 360)
+                .attr("height", 35)
+                .style("fill", "#e9ecef")
+                .style("rx", 4);
+            
+            filterContainer.append("text")
+                .attr("x", 0)
+                .attr("y", 8)
+                .style("font-size", "10px")
+                .style("font-weight", "bold")
+                .text("Show only influence level:");
+            
+            // Función para aplicar filtro de influencia
+            function applyInfluenceFilter(exactInfluence) {
+                filteredByInfluence.clear();
+                
+                if (exactInfluence === 'all') {
+                    // Mostrar todos (solo los que no están ocultos manualmente)
+                    sortedPersons.forEach(person => {
+                        if (!hiddenPersons.has(person)) {
+                            g.select(`.person-group[data-person="${person}"]`).classed("hidden", false);
+                        }
+                    });
+                } else {
+                    // Mostrar solo los de influencia exacta
+                    sortedPersons.forEach(person => {
+                        const stats = personStats.get(person);
+                        if (stats.maxInfluence !== exactInfluence) {
+                            filteredByInfluence.add(person);
+                            g.select(`.person-group[data-person="${person}"]`).classed("hidden", true);
+                        } else if (!hiddenPersons.has(person)) {
+                            g.select(`.person-group[data-person="${person}"]`).classed("hidden", false);
+                        }
+                    });
+                }
+                
+                updateLegendVisibility();
+            }
+            
+            function updateLegendVisibility() {
+                legendItems.each(function(d) {
+                    const isManuallyHidden = hiddenPersons.has(d);
+                    const isFilteredOut = filteredByInfluence.has(d);
+                    
+                    d3.select(this)
+                        .classed("hidden", isManuallyHidden)
+                        .style("opacity", isFilteredOut ? 0.3 : 1)
+                        .style("pointer-events", isFilteredOut ? "none" : "all");
+                });
+            }
+            
+            // Crear botones de filtro
+            const filterButtons = [1, 2, 3];
+            
+            filterButtons.forEach((exactVal, i) => {
+                const btn = filterContainer.append("g")
+                    .attr("class", "filter-btn")
+                    .attr("data-filter", exactVal)
+                    .attr("transform", `translate(${140 + i * 32}, 5)`)
+                    .style("cursor", "pointer")
+                    .on("click", function() {
+                        
+                        // Actualizar botón activo
+                        filterContainer.selectAll(".filter-btn").classed("active", false);
+                        d3.select(this).classed("active", true);
+                        
+                        // Cambiar apariencia visual
+                        filterContainer.selectAll(".filter-btn rect")
+                            .style("fill", "white");
+                        filterContainer.selectAll(".filter-btn text")
+                            .style("fill", "black");
+                        
+                        d3.select(this).select("rect").style("fill", "#007bff");
+                        d3.select(this).select("text").style("fill", "white");
+                        
+                        // Aplicar filtro exacto
+                        currentMinInfluence = exactVal;
+                        applyInfluenceFilter(exactVal);
+                    });
+                
+                btn.append("rect")
+                    .attr("x", -12)
+                    .attr("y", -10)
+                    .attr("width", 24)
+                    .attr("height", 18)
+                    .style("fill", "white")
+                    .style("stroke", "#6c757d")
+                    .style("stroke-width", 1)
+                    .style("rx", 3);
+                
+                btn.append("text")
+                    .attr("x", 0)
+                    .attr("y", 0)
+                    .attr("text-anchor", "middle")
+                    .attr("dy", "0.35em")
+                    .style("font-size", "10px")
+                    .style("fill", "black")
+                    .text(exactVal);
+            });
+            
+            // Botón para mostrar todos
+            const showAllBtn = filterContainer.append("g")
+                .attr("class", "filter-btn active")
+                .attr("data-filter", "all")
+                .attr("transform", `translate(${140 + filterButtons.length * 32}, 5)`)
+                .style("cursor", "pointer")
+                .on("click", function() {
+
+                    
+                    // Actualizar botón activo
+                    filterContainer.selectAll(".filter-btn").classed("active", false);
+                    d3.select(this).classed("active", true);
+                    
+                    // Cambiar apariencia visual
+                    filterContainer.selectAll(".filter-btn rect")
+                        .style("fill", "white");
+                    filterContainer.selectAll(".filter-btn text")
+                        .style("fill", "black");
+                    
+                    d3.select(this).select("rect").style("fill", "#28a745");
+                    d3.select(this).select("text").style("fill", "white");
+                    
+                    // Mostrar todos
+                    currentMinInfluence = 'all';
+                    applyInfluenceFilter('all');
+                });
+            
+            showAllBtn.append("rect")
+                .attr("x", -18)
+                .attr("y", -10)
+                .attr("width", 36)
+                .attr("height", 18)
+                .style("fill", "#28a745")
+                .style("stroke", "#6c757d")
+                .style("stroke-width", 1)
+                .style("rx", 3);
+            
+            showAllBtn.append("text")
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("text-anchor", "middle")
+                .attr("dy", "0.35em")
+                .style("font-size", "9px")
+                .style("fill", "white")
+                .text("All");
+            
+            // Crear items de leyenda en DOS COLUMNAS
+            const legendItems = legendContainer.selectAll(".legend-item")
+                .data(sortedPersons)
+                .enter().append("g")
+                .attr("class", "legend-item")
+                .attr("data-person", d => d)
+                .attr("transform", (d, i) => {
+                    // DISTRIBUCIÓN REAL EN DOS COLUMNAS
+                    if (i < itemsPerColumn) {
+                        // Primera columna (izquierda)
+                        return `translate(0, ${i * 14 + 70})`;
+                    } else {
+                        // Segunda columna (derecha) - ajustada para que quepa en el fondo
+                        return `translate(160, ${(i - itemsPerColumn) * 14 + 70})`;
+                    }
+                })
+                .style("cursor", "pointer")
+                .on("mouseover", function(event, d) {
+                    if (!hiddenPersons.has(d) && !filteredByInfluence.has(d)) {
+                        highlightPerson(d);
+                    }
+                })
+                .on("mouseout", function(event, d) {
+                    clearHighlight();
+                })
+                .on("click", function(event, d) {
+                    event.stopPropagation();
+                    
+                    if (filteredByInfluence.has(d)) return;
+                    
+                    const isHidden = hiddenPersons.has(d);
+                    
+                    if (isHidden) {
+                        hiddenPersons.delete(d);
+                        d3.select(this).classed("hidden", false);
+                        g.select(`.person-group[data-person="${d}"]`).classed("hidden", false);
+                    } else {
+                        hiddenPersons.add(d);
+                        d3.select(this).classed("hidden", true);
+                        g.select(`.person-group[data-person="${d}"]`).classed("hidden", true);
+                    }
+                });
+            
+            legendItems.append("rect")
+                .attr("x", 0)
+                .attr("y", -4)
+                .attr("width", 10)
+                .attr("height", 8)
+                .style("fill", d => {
+                    const stats = personStats.get(d);
+                    return getColorByInfluence(stats.maxInfluence);
+                })
+                .style("stroke", "#666")
+                .style("stroke-width", 1);
+            
+            legendItems.append("text")
+                .attr("x", 15)
+                .attr("y", 0)
+                .attr("dy", "0.35em")
+                .style("font-size", "9px")
+                .text(d => {
+                    const stats = personStats.get(d);
+                    const name = d.length > 12 ? d.substring(0, 12) + "..." : d;
+                    return `${name} (${stats.maxInfluence})`;
+                });
+        }
+        
+        // Cargar datos al inicio
+        loadData();
+    </script>
+</body>
+</html>
