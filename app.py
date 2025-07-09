@@ -41,6 +41,11 @@ def algo1():
 def p3():
     return render_template('index_3.html')
 
+@app.route('/p1') 
+def p1():
+    return render_template('p1.html')
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
