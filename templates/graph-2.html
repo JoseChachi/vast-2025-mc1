@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oceanus Folk – Explorador de Influencias</title>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- tu hoja de estilos original -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style-2.css') }}">
+
+    <style>
+        /* ----------- estilos heredados ----------- */
+        svg.graph        { display:none; }
+        .artist-table    { border-collapse:collapse; margin-top:1rem; width:100%; }
+        .artist-table th,
+        .artist-table td { border:1px solid #ccc; padding:.4rem .6rem; text-align:left; }
+        .artist-table tr:nth-child(even){ background:#f9f9f9; }
+
+        /* ocultar todo mientras JS prepara la vista */
+        body.loading h2,
+        body.loading svg.graph,
+        body.loading #artistTable,
+        body.loading #yearBoxWrap,
+        body.loading #legendBox { display:none; }
+
+        /* ----------- layout de la plantilla ----------- */
+        body        { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; margin:20px; background:#f8f9fa; }
+        .container  { display:flex; gap:20px; }
+        .graph-wrap { flex:1; }
+        .info-panel { width:400px; background:white; border-radius:5px; box-shadow:0 4px 8px rgba(0,0,0,.1); padding:20px; max-height:700px; overflow-y:auto; }
+        /* marco visual para las SVG */
+        .chart-frame{ border:2px solid #dee2e6; border-radius:10px; background:linear-gradient(180deg,#e3f2fd 0%,#fff 35%,#fff 65%,#f3e5f5 100%); box-shadow:0 4px 8px rgba(0,0,0,.1); padding:10px; }
+
+        /* título del panel lateral */
+        .side-title { font-size:16px; font-weight:600; margin-top:0; margin-bottom:10px; color:#495057; }
+
+        .grid line{
+            stroke:#8a8a8a;
+            stroke-opacity:.15;     /* muy suave */
+            stroke-width:2px;
+            shape-rendering:crispEdges;
+        }
+    </style>
+</head>
+
+<body class="loading">
+    <h1>Influencias y actualidad de Oceanus Folk</h1>
+
+    <!-- controles -->
+    <div id="controls" style="margin-bottom:20px; padding:15px; background:white; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1);">
+        <label for="viewSelector"><strong>Elegir gráfico:</strong></label>
+        <select id="viewSelector">
+            <option value="timeline">¿Difusión intermitente o gradual?</option>
+            <option value="bars">Géneros y artistas más influenciados</option>
+            <option value="box">Evolución caja-año post-Sailor</option>
+        </select>
+    </div>
+
+    <div class="container">
+        <!-- ··········································· GRÁFICOS ··········································· -->
+        <div class="graph-wrap">
+
+            <!-- 1. TIMELINE -->
+            <h2 id="title-timeline">1. ¿Difusión intermitente o gradual?</h2>
+            <div class="chart-frame">
+                <svg id="timeline" class="graph" width="960" height="300"></svg>
+            </div>
+
+            <!-- 2. BARRAS -->
+            <h2 id="title-bars">2. Géneros y artistas más influenciados</h2>
+            <div class="chart-frame">
+                <svg id="bars" class="graph" width="960" height="400"></svg>
+            </div>
+
+            <!-- 3. Caja acumulada post-Sailor -->
+            <h2 id="title-box">3. Evolución acumulada post-Sailor</h2>
+            <div id="boxPane" class="chart-frame" style="position:relative;">
+                <div id="yearBoxWrap" style="display:none; gap:8px; margin-bottom:8px;">
+                    <input id="yearBoxSlider" type="range" style="width:260px">
+                    <div id="yearBoxCtrl">
+                        <button id="bPrev">⏮</button>
+                        <button id="bPlay">⏯</button>
+                        <button id="bNext">⏭</button>
+                    </div>
+                </div>
+                <svg id="boxChart" class="graph" width="960" height="460"></svg>
+            </div>
+        </div>
+
+        <!-- ··········································· PANEL LATERAL ··········································· -->
+        <div class="info-panel">
+            <!-- leyenda para la caja (gráfico 3) -->
+            <div id="legendBox">
+                <h3 class="side-title">Leyenda</h3>
+                <!-- el JS insertará aquí los rectángulos + textos -->
+            </div>
+
+            <!-- tabla de artistas (gráfico 2) -->
+            <div id="artistTable"></div>
+        </div>
+    </div>
+
+    <!-- tooltip flotante -->
+    <div id="tooltip" style="position:absolute; pointer-events:none; background:rgba(0,0,0,.75); color:#fff; padding:6px 8px; border-radius:4px; font:12px sans-serif; opacity:0;"></div>
+
+    <!-- JS principal sin tocar IDs -->
+    <script src="{{ url_for('static', filename='js/graph-2.js') }}"></script>
+</body>
+</html>

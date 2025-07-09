@@ -4,25 +4,14 @@ import json
 
 app = Flask(__name__)
 
+    
 @app.route('/')
-def index():
+def index3():
     return render_template('otherlanding2.html')
 
-# @app.route('/xd2/')
-# def index2():
-#     return render_template('otherlanding.html')
-
-# @app.route('/p1/1')
-# def index3():
-#     return render_template('otherlanding2.html')
-
-# @app.route('/p1/2')
-# def index4():
-    # return render_template('otherrlanding2.html')
-
-@app.route('/p1/3')
-def index5():
-    return render_template('index_3.html')
+@app.route('/p2/')
+def question2():
+    return render_template('graph-2.html')
 
 @app.route('/data/<path:filename>')
 def data(filename):
