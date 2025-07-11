@@ -24,13 +24,13 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
-     inkscape:zoom="2.021524"
-     inkscape:cx="429.87369"
-     inkscape:cy="231.75584"
+     inkscape:zoom="0.63135499"
+     inkscape:cx="253.4232"
+     inkscape:cy="464.87318"
      inkscape:window-width="1344"
      inkscape:window-height="776"
      inkscape:window-x="284"
-     inkscape:window-y="105"
+     inkscape:window-y="77"
      inkscape:window-maximized="0"
      inkscape:current-layer="layer1" /><defs
      id="defs1"><marker
@@ -91,7 +91,7 @@
          id="tspan9-8"
          style="fill:#141414;fill-opacity:1;stroke-width:0.730334"
          x="122.90856"
-         y="202.56245">D</tspan></text><image
+         y="202.56245">A</tspan></text><image
        width="99.161568"
        height="129.43423"
        preserveAspectRatio="none"
@@ -115,7 +115,7 @@
          id="tspan9-7"
          style="fill:#141414;fill-opacity:1;stroke-width:0.730334"
          x="38.212196"
-         y="139.43903">C</tspan></text><image
+         y="139.43903">D</tspan></text><image
        width="200.79514"
        height="82.495468"
        preserveAspectRatio="none"
@@ -139,7 +139,7 @@
          id="tspan9-5"
          style="fill:#141414;fill-opacity:1;stroke-width:0.730334"
          x="179.01791"
-         y="68.770241">B</tspan></text><ellipse
+         y="68.770241">C</tspan></text><ellipse
        style="display:inline;opacity:0.475;fill:#d2d2d2;fill-opacity:1;stroke-width:0.352777"
        id="path1"
        cx="18.769041"
@@ -154,9 +154,9 @@
        transform="scale(1.0417407,0.95993175)"><tspan
          sodipodi:role="line"
          id="tspan9"
-         style="stroke-width:0.730334;fill:#141414;fill-opacity:1"
+         style="fill:#141414;fill-opacity:1;stroke-width:0.730334"
          x="14.344507"
-         y="64.150581">A</tspan></text><image
+         y="64.150581">B</tspan></text><image
        width="38.993824"
        height="40.469421"
        preserveAspectRatio="none"
