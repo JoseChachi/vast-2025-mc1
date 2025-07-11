@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oceanus Folk – Explorador de Influencias</title>
+    <title>FolkFlow</title>
 
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <!-- tu hoja de estilos original -->
@@ -45,15 +45,15 @@
 </head>
 
 <body class="loading">
-    <h1>Influencias y actualidad de Oceanus Folk</h1>
+    <h1>Influences and relevance of Oceanus Folk</h1>
 
     <!-- controles -->
     <div id="controls" style="margin-bottom:20px; padding:15px; background:white; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1);">
-        <label for="viewSelector"><strong>Elegir gráfico:</strong></label>
+        <label for="viewSelector"><strong>Chose Graphic:</strong></label>
         <select id="viewSelector">
-            <option value="timeline">¿Difusión intermitente o gradual?</option>
-            <option value="bars">Géneros y artistas más influenciados</option>
-            <option value="box">Evolución caja-año post-Sailor</option>
+            <option value="timeline">Intermittent or gradual diffusion?</option>
+            <option value="bars">Most influenced genres and artists</option>
+            <option value="box">Post-Sailor Evolution</option>
         </select>
     </div>
 
@@ -62,19 +62,19 @@
         <div class="graph-wrap">
 
             <!-- 1. TIMELINE -->
-            <h2 id="title-timeline">1. ¿Difusión intermitente o gradual?</h2>
+            <h2 id="title-timeline">1. Intermittent or gradual diffusion?</h2>
             <div class="chart-frame">
                 <svg id="timeline" class="graph" width="960" height="300"></svg>
             </div>
 
             <!-- 2. BARRAS -->
-            <h2 id="title-bars">2. Géneros y artistas más influenciados</h2>
+            <h2 id="title-bars">2. Most influenced genres and artists</h2>
             <div class="chart-frame">
                 <svg id="bars" class="graph" width="960" height="400"></svg>
             </div>
 
             <!-- 3. Caja acumulada post-Sailor -->
-            <h2 id="title-box">3. Evolución acumulada post-Sailor</h2>
+            <h2 id="title-box">3. Post-Sailor Evolution</h2>
             <div id="boxPane" class="chart-frame" style="position:relative;">
                 <div id="yearBoxWrap" style="display:none; gap:8px; margin-bottom:8px;">
                     <input id="yearBoxSlider" type="range" style="width:260px">
@@ -92,7 +92,7 @@
         <div class="info-panel">
             <!-- leyenda para la caja (gráfico 3) -->
             <div id="legendBox">
-                <h3 class="side-title">Leyenda</h3>
+                <h3 class="side-title">Legend</h3>
                 <!-- el JS insertará aquí los rectángulos + textos -->
             </div>
 
